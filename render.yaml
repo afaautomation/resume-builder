@@ -1,0 +1,38 @@
+services:
+  # Backend Service
+  - type: web
+    name: resume-builder-api
+    plan: free
+    runtime: node
+    buildCommand: npm install --production --no-audit --no-fund
+    startCommand: node src/server.js
+    env: github
+    envVars:
+      - key: NODE_VERSION
+        value: 20.1.0
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GEMINI_API_KEYS
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+    rootDir: backend
+
+  # Frontend Service
+  - type: web
+    name: resume-builder-ui
+    runtime: static
+    buildCommand: "" # No build step for vanilla HTML/JS
+    staticPublishPath: frontend
+    envVars:
+      - key: API_BASE_URL
+        fromService:
+          name: resume-builder-api
+          type: web
+          property: host

@@ -1,0 +1,12 @@
+node_modules/
+data/
+uploads/
+exports/
+logs/
+.env
+*.db
+*.log
+coverage/
+.nyc_output/
+dist/
+google-credentials.json
