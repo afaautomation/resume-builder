@@ -1089,6 +1089,15 @@ async function generateClientPdf() {
                 foreignObjectRendering: false,
                 imageTimeout: 15000,
                 onclone: (clonedDoc) => {
+                    // Copy stylesheets and fonts from iframeDoc to clonedDoc so margins, padding, and fonts are preserved
+                    const iframeHead = iframeDoc.head;
+                    const targetContainer = clonedDoc.head || clonedDoc.body || clonedDoc.documentElement;
+                    if (iframeHead && targetContainer) {
+                        Array.from(iframeHead.querySelectorAll('style, link')).forEach(styleEl => {
+                            targetContainer.appendChild(styleEl.cloneNode(true));
+                        });
+                    }
+
                     // Ensure cloned doc also has no scroll offsets
                     const clonedEl = clonedDoc.getElementById('pdf-content');
                     if (clonedEl) {
