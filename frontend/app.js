@@ -971,10 +971,17 @@ document.addEventListener('DOMContentLoaded', () => {
 async function generateClientPdf() {
     if (!state.currentResume) return;
 
-    showToast('Opening print dialog — choose "Save as PDF"...', 'info');
+    const btn = document.getElementById('download-pdf-btn');
+    const mobileBtn = document.getElementById('mobile-bottom-download-btn');
+    const originalText = btn.innerHTML;
+    const originalMobileText = mobileBtn ? mobileBtn.innerHTML : '';
+    
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating PDF...';
+    if (mobileBtn) mobileBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating...';
+    lucide.createIcons();
 
     try {
-        // Fetch the full rendered HTML from the backend (same as preview)
+        // Fetch the full rendered HTML from the backend
         const htmlText = await fetch(`${API_BASE}/export/preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -986,72 +993,51 @@ async function generateClientPdf() {
             })
         }).then(r => r.text());
 
-        // @page margin:0 removes browser's auto-generated timestamp/title/URL headers.
-        // We add padding to the body itself to create proper page margins.
-        const printCss = `
-            <style>
-                @page {
-                    size: A4;
-                    margin: 0;
-                }
-                @media print {
-                    html {
-                        margin: 0 !important;
-                        padding: 0 !important;
-                    }
-                    body {
-                        margin: 0 !important;
-                        padding: 10mm 12mm !important;
-                        box-sizing: border-box !important;
-                        width: 210mm !important;
-                    }
-                    .page, .page-inner {
-                        width: 100% !important;
-                        min-height: auto !important;
-                        height: auto !important;
-                        overflow: visible !important;
-                        box-shadow: none !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                    }
-                    /* Edge-to-edge headers (bleed-header class or inline negative margin headers) */
-                    .bleed-header {
-                        margin-left: -12mm !important;
-                        margin-right: -12mm !important;
-                        margin-top: -10mm !important;
-                    }
-                    section, .item { page-break-inside: avoid; }
-                }
-            </style>
-        `;
-        const fullHtml = htmlText.replace('</head>', printCss + '</head>');
-
-        // Create hidden iframe, write HTML, then print it
+        // Create an offscreen iframe to isolate CSS and guarantee exact A4 rendering size (794px width)
         const printFrame = document.createElement('iframe');
-        printFrame.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none;';
+        printFrame.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;height:1123px;border:none;';
         document.body.appendChild(printFrame);
 
         await new Promise(resolve => {
             printFrame.onload = resolve;
             printFrame.contentDocument.open();
-            printFrame.contentDocument.write(fullHtml);
+            printFrame.contentDocument.write(htmlText);
             printFrame.contentDocument.close();
         });
 
-        // Wait for fonts/images to load
-        await new Promise(r => setTimeout(r, 600));
+        // Wait for external fonts/images to load fully inside the iframe
+        await new Promise(r => setTimeout(r, 1000));
 
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
+        // Get the specific element to capture
+        const element = printFrame.contentDocument.getElementById('pdf-content') || printFrame.contentDocument.body;
 
-        // Clean up after a delay (print dialog is async)
-        setTimeout(() => {
-            document.body.removeChild(printFrame);
-        }, 3000);
+        const opt = {
+            margin:       0,
+            filename:     `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { 
+                scale: 2, 
+                useCORS: true, 
+                windowWidth: 794,
+                scrollY: 0,
+                scrollX: 0
+            },
+            jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
+        };
+
+        // Use html2pdf to generate and trigger direct file download
+        await html2pdf().set(opt).from(element).save();
+
+        document.body.removeChild(printFrame);
+        showToast('PDF downloaded successfully!', 'success');
 
     } catch (err) {
         console.error('PDF Generation Error:', err);
         showToast('Failed to generate PDF. Please try again.', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        if (mobileBtn) mobileBtn.innerHTML = originalMobileText;
+        lucide.createIcons();
     }
 
     // Background save to sync DB
