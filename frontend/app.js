@@ -1076,6 +1076,7 @@ async function generateClientPdf() {
                 useCORS: true,
                 allowTaint: false,
                 letterRendering: true,
+                window: iframeWin, // Render within iframe context to preserve styles, fonts, and borders
                 scrollX: 0,
                 scrollY: 0,
                 windowWidth: 794,
