@@ -82,6 +82,10 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      overflow: hidden;
+    }
     
     body {
       font-family: var(--font-family) !important;
@@ -89,13 +93,16 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
       line-height: var(--line-height);
       color: #1e293b;
       background: #fff;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden;
       -webkit-print-color-adjust: exact;
     }
 
     .page {
       width: 794px;
       min-height: 1123px;
-      margin: 0 auto;
+      margin: 0;
       position: relative;
     }
 

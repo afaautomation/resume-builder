@@ -986,6 +986,7 @@ async function generateClientPdf() {
     if (mobileBtn) mobileBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating...';
     lucide.createIcons();
 
+    let printFrame = null;
     try {
         // Fetch the full rendered HTML from the backend
         const htmlText = await fetch(`${API_BASE}/export/preview`, {
@@ -999,12 +1000,23 @@ async function generateClientPdf() {
             })
         }).then(r => r.text());
 
-        // Create an offscreen iframe to isolate CSS and guarantee exact A4 rendering size
-        const printFrame = document.createElement('iframe');
-        // Keep it in the viewport but invisible, to prevent html2canvas offset bugs
-        printFrame.style.cssText = 'position:fixed;left:0;top:0;width:794px;height:1123px;border:none;opacity:0.01;z-index:-9999;pointer-events:none;';
+        // Create a hidden iframe — width must be exactly 794px (A4 @ 96dpi)
+        // Position off-screen to the RIGHT so it doesn't affect visible scroll
+        printFrame = document.createElement('iframe');
+        printFrame.style.cssText = [
+            'position:fixed',
+            'left:-9999px',
+            'top:0',
+            'width:794px',
+            'height:1123px',
+            'border:none',
+            'visibility:hidden',
+            'z-index:-9999',
+            'pointer-events:none'
+        ].join(';');
         document.body.appendChild(printFrame);
 
+        // Write HTML and wait for the load event
         await new Promise(resolve => {
             printFrame.onload = resolve;
             printFrame.contentDocument.open();
@@ -1012,39 +1024,69 @@ async function generateClientPdf() {
             printFrame.contentDocument.close();
         });
 
-        // Wait for external fonts/images to load fully inside the iframe
-        await new Promise(r => setTimeout(r, 1000));
+        // Let fonts + images fully render inside the iframe
+        await new Promise(r => setTimeout(r, 1200));
 
-        const element = printFrame.contentDocument.getElementById('pdf-content');
-        
-        // Force the element to explicitly declare its width so html2pdf calculates the ratio correctly
-        element.style.width = '794px';
-        element.style.maxWidth = '794px';
+        const iframeDoc = printFrame.contentDocument;
+        const iframeWin = printFrame.contentWindow;
+
+        // Make sure the body and html have no extra scroll offset
+        iframeDoc.documentElement.style.overflow = 'hidden';
+        iframeDoc.body.style.overflow = 'hidden';
+        iframeDoc.body.style.margin = '0';
+
+        const element = iframeDoc.getElementById('pdf-content');
+        if (!element) throw new Error('pdf-content element not found in rendered HTML');
+
+        // Lock dimensions so html2canvas measures correctly
+        element.style.cssText += ';width:794px !important;max-width:794px !important;margin:0 !important;';
 
         const opt = {
             margin: 0,
             filename: `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`,
-            image: { type: 'jpeg', quality: 1.0 },
+            image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
-                scale: 2, // Doubles the resolution (Canvas becomes 1588 x 2246)
+                scale: 2,
                 useCORS: true,
+                allowTaint: false,
                 letterRendering: true,
-                window: printFrame.contentWindow 
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 794,
+                windowHeight: 1123,
+                width: 794,
+                height: element.scrollHeight || 1123,
+                x: 0,
+                y: 0,
+                logging: false,
+                foreignObjectRendering: false,
+                imageTimeout: 15000,
+                onclone: (clonedDoc) => {
+                    // Ensure cloned doc also has no scroll offsets
+                    const clonedEl = clonedDoc.getElementById('pdf-content');
+                    if (clonedEl) {
+                        clonedEl.style.cssText += ';width:794px !important;max-width:794px !important;margin:0 !important;';
+                    }
+                }
             },
-            // CRITICAL FIX: Match the PDF size EXACTLY to the scaled canvas size so html2pdf doesn't try to scale it and cause the 2x zoom bug!
-            jsPDF: { unit: 'px', format: [1588, 2246], orientation: 'portrait' }
+            jsPDF: {
+                unit: 'mm',
+                format: 'a4',
+                orientation: 'portrait',
+                compress: true
+            }
         };
 
-        // Use html2pdf to generate and trigger direct file download
         await html2pdf().set(opt).from(element).save();
-
-        document.body.removeChild(printFrame);
         showToast('PDF downloaded successfully!', 'success');
 
     } catch (err) {
         console.error('PDF Generation Error:', err);
         showToast('Failed to generate PDF. Please try again.', 'error');
     } finally {
+        if (printFrame && printFrame.parentNode) {
+            document.body.removeChild(printFrame);
+        }
         btn.innerHTML = originalText;
         if (mobileBtn) mobileBtn.innerHTML = originalMobileText;
         lucide.createIcons();
