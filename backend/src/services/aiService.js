@@ -120,7 +120,7 @@ class AiService {
       logger.info('[AI] Gemini exhausted or unavailable. Falling back to Grok...');
       try {
         const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-          model: 'grok-beta',
+          model: 'grok-2',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7
         }, {
@@ -146,9 +146,10 @@ class AiService {
       logger.info('[AI] Gemini and Grok exhausted. Falling back to OpenRouter...');
       try {
         const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-          model: 'google/gemini-2.0-flash-exp:free', // Reliable free model
+          model: 'google/gemini-2.5-flash', // Active and highly cost-efficient model
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7
+          temperature: 0.7,
+          max_tokens: 1500 // Limit max tokens to fit within user credits
         }, {
           headers: {
             'Authorization': `Bearer ${openRouterKey}`,
