@@ -13,7 +13,7 @@ USER 1000
 # Install backend dependencies
 COPY --chown=1000:1000 backend/package*.json ./backend/
 WORKDIR /usr/src/app/backend
-RUN npm ci
+RUN npm install
 
 # Copy the rest of the application code
 WORKDIR /usr/src/app
