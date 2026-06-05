@@ -1027,16 +1027,16 @@ async function generateClientPdf() {
         }).then(r => r.text());
 
         // Create a hidden iframe — width must be exactly 794px (A4 @ 96dpi)
-        // Position off-screen to the RIGHT so it doesn't affect visible scroll
+        // Keep it in viewport but transparent to avoid html2canvas offset and visibility bugs
         printFrame = document.createElement('iframe');
         printFrame.style.cssText = [
             'position:fixed',
-            'left:-9999px',
+            'left:0',
             'top:0',
             'width:794px',
             'height:1123px',
             'border:none',
-            'visibility:hidden',
+            'opacity:0.01',
             'z-index:-9999',
             'pointer-events:none'
         ].join(';');
