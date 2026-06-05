@@ -146,7 +146,7 @@ class AiService {
       logger.info('[AI] Gemini and Grok exhausted. Falling back to OpenRouter...');
       try {
         const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-          model: 'google/gemini-pro-1.5-exp', // Or another reliable model
+          model: 'google/gemini-2.0-flash-exp:free', // Reliable free model
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7
         }, {
