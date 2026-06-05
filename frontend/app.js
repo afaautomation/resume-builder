@@ -535,31 +535,42 @@ function renderSectionForm(sectionKey) {
                 context = state.currentResume.content[section][parseInt(index)];
             }
 
-            showToast('Generating detailed AI suggestion...', 'info');
+            showToast('Generating AI suggestion...', 'info');
+            const originalHtml = btn.innerHTML;
             btn.innerHTML = '<i data-lucide="loader"></i>';
+            btn.disabled = true;
             lucide.createIcons();
 
             const targetId = type === 'summary' ? 'summary-textarea' : `${section}-desc-${index}`;
             const textarea = document.getElementById(targetId);
-            if (textarea) textarea.value = ''; // Clear for fresh suggestion
+            if (textarea) textarea.value = '';
+
+            let fullText = '';
 
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
+
                 const response = await fetch(`${API_BASE}/ai/suggest`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type, context, stream: true })
+                    body: JSON.stringify({ type, context, stream: true }),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
+
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    let errMsg = `HTTP ${response.status}`;
-                    try { errMsg = JSON.parse(errorText).message || errMsg; } catch(e){}
+                    let errMsg = `Server error (${response.status})`;
+                    try {
+                        const errData = await response.json();
+                        errMsg = errData.message || errMsg;
+                    } catch(e) {}
                     throw new Error(errMsg);
                 }
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let fullText = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -573,36 +584,51 @@ function renderSectionForm(sectionKey) {
                             const dataStr = line.replace(/^data: /, '').trim();
                             if (dataStr === '[DONE]') continue;
                             try {
-                                const data = JSON.parse(dataStr);
-                                if (data.chunk) {
-                                    fullText += data.chunk;
+                                const parsed = JSON.parse(dataStr);
+                                if (parsed.error) throw new Error(parsed.error);
+                                if (parsed.chunk) {
+                                    fullText += parsed.chunk;
                                     if (textarea) {
                                         textarea.value = fullText;
-                                        // Auto-scroll to bottom
                                         textarea.scrollTop = textarea.scrollHeight;
                                     }
                                 }
-                            } catch (e) { }
+                            } catch (e) {
+                                if (e.message && !e.message.includes('JSON')) throw e;
+                            }
                         }
                     }
                 }
 
+                if (!fullText) throw new Error('AI returned no content. API keys may be exhausted or unavailable.');
+
+                // Save to state
                 if (type === 'summary') {
                     state.currentResume.content.summary = fullText;
                 } else if (type === 'description') {
                     state.currentResume.content[section][parseInt(index)].description = fullText;
                 }
+
                 updatePreview();
                 showToast('AI suggestion applied!', 'success');
+
             } catch (err) {
-                console.error(err);
-                showToast('Failed to generate suggestion.', 'error');
+                console.error('AI Suggestion Error:', err);
+                if (err.name === 'AbortError') {
+                    showToast('AI request timed out. Please try again.', 'error');
+                } else {
+                    showToast(`AI Error: ${err.message}`, 'error');
+                }
+                // Restore textarea if empty
+                if (textarea && !textarea.value) textarea.value = '';
             } finally {
-                btn.innerHTML = type === 'summary' ? '<i data-lucide="sparkles"></i> AI Write' : '<i data-lucide="sparkles" style="width:16px; height:16px; color:var(--primary);"></i>';
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
                 lucide.createIcons();
             }
         };
     });
+
 
     // Attach live preview update on every input change (no save to DB)
     formContainer.querySelectorAll('input, textarea, select').forEach(input => {
