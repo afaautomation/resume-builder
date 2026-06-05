@@ -4,14 +4,13 @@
  */
 
 const hostname = window.location.hostname || 'localhost';
-const isLocalDev = hostname === 'localhost' || 
-                   hostname === '127.0.0.1' || 
-                   hostname.startsWith('192.168.') || 
-                   hostname.startsWith('10.');
+const isLocalDev = hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.');
 
-const API_BASE = isLocalDev 
-    ? `http://${hostname}:5000/api` 
-    : `${window.location.origin}/api`;
+const API_BASE = 'https://afaautomation-resume.hf.space/api';
+
 
 // --- State Management ---
 const state = {
@@ -36,7 +35,7 @@ async function apiFetch(endpoint, options = {}) {
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
         const data = await response.json();
-        
+
         if (!response.ok) throw new Error(data.message || 'API Error');
         return data;
     } catch (err) {
@@ -49,7 +48,7 @@ async function apiFetch(endpoint, options = {}) {
 function switchView(viewName) {
     state.activeView = viewName;
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    
+
     const targetView = document.getElementById(`${viewName}-view`);
     if (targetView) {
         targetView.classList.remove('hidden');
@@ -71,22 +70,22 @@ function switchView(viewName) {
             iframe.src = 'about:blank';
         }
     }
-    
+
     // Update background state if it exists
     if (window.updateBackgroundView) {
         window.updateBackgroundView(viewName);
     }
-    
+
     updateLogoutButtons();
 }
 
 function updateLogoutButtons() {
     const token = localStorage.getItem('token');
     const isAuth = !!token;
-    
+
     const templatesLogout = document.getElementById('logout-btn-templates');
     const editorLogout = document.getElementById('logout-btn-editor');
-    
+
     if (templatesLogout) templatesLogout.style.display = isAuth ? 'inline-flex' : 'none';
     if (editorLogout) editorLogout.style.display = isAuth ? 'inline-flex' : 'none';
 }
@@ -121,7 +120,7 @@ async function fetchTemplatesForPicker() {
     // Load from cache first for instant UI
     const cached = localStorage.getItem('cached_templates');
     if (cached) {
-        try { renderTemplates(JSON.parse(cached)); } catch(e){}
+        try { renderTemplates(JSON.parse(cached)); } catch (e) { }
     } else {
         grid.innerHTML = '<div style="text-align: center; width: 100%; grid-column: 1 / -1; padding: 4rem;"><i data-lucide="loader" style="animation: spin 1s linear infinite; margin-bottom: 1rem;"></i><p style="color: var(--text-muted);">Waking up the server... Please wait a few seconds!</p></div>';
         lucide.createIcons();
@@ -160,7 +159,7 @@ async function startBuildingWithTemplate(templateId) {
         showToast('Preparing your editor...', 'info');
         const data = await apiFetch('/resumes', {
             method: 'POST',
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 title: 'My New Resume',
                 templateId: templateId
             })
@@ -189,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabSignup = document.getElementById('tab-signup');
     const tabLogin = document.getElementById('tab-login');
     const signupFields = document.getElementById('signup-fields');
-    
+
     if (tabSignup && tabLogin) {
         tabSignup.onclick = () => {
             isSignupMode = true;
@@ -210,18 +209,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-window.submitAuth = async function() {
+window.submitAuth = async function () {
     const phone = document.getElementById('auth-phone').value.trim();
     const name = document.getElementById('auth-name').value.trim();
     const email = document.getElementById('auth-email').value.trim();
     const btn = document.getElementById('submit-auth-btn');
-    
+
     if (!phone) return showToast('Please enter mobile number', 'error');
     if (isSignupMode && (!name || !email)) return showToast('Please enter name and email', 'error');
-    
+
     btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Processing...';
     lucide.createIcons();
-    
+
     try {
         const payload = { phone };
         if (isSignupMode) {
@@ -235,7 +234,7 @@ window.submitAuth = async function() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        
+
         if (!res.ok) {
             if (res.status === 404 && data.message.includes('Sign Up')) {
                 const tabSignup = document.getElementById('tab-signup');
@@ -249,17 +248,17 @@ window.submitAuth = async function() {
             }
             throw new Error(data.message || 'Authentication failed');
         }
-        
+
         // Success
         localStorage.setItem('token', data.tokens.access);
         document.getElementById('otp-auth-modal').classList.add('hidden');
         showToast('Authentication successful!', 'success');
-        
+
         if (pendingTemplateId) {
             startBuildingWithTemplate(pendingTemplateId);
             pendingTemplateId = null;
         }
-        
+
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
@@ -289,9 +288,9 @@ async function openEditor(id) {
         if (window.updateBackgroundView) window.updateBackgroundView('editor');
 
         setupEditor();
-        
 
-        
+
+
         updatePreview();
     } catch (err) {
         console.error(err);
@@ -302,7 +301,7 @@ async function openEditor(id) {
 function setupEditor() {
     const r = state.currentResume;
     document.getElementById('resume-title-input').value = r.title;
-    
+
     const sections = [
         { key: 'contact', label: 'Contact Info', icon: 'user' },
         { key: 'summary', label: 'Summary', icon: 'align-left' },
@@ -328,7 +327,7 @@ function setupEditor() {
 
     sectionContainer.querySelectorAll('.section-nav-btn').forEach(btn => {
         btn.onclick = () => renderSectionForm(btn.dataset.section);
-        
+
         btn.addEventListener('dragstart', (e) => {
             btn.classList.add('dragging');
             e.dataTransfer.setData('text/plain', btn.dataset.section);
@@ -370,10 +369,10 @@ function getDragAfterElement(container, y) {
 async function updateSectionsOrder() {
     const newOrder = [...document.querySelectorAll('.section-nav-btn')].map(btn => btn.dataset.section);
     state.currentResume.layout = { sections: newOrder };
-    
+
     // Save order
     saveResumeDebounced();
-    
+
     // Update preview (templates will need to support this)
     updatePreview();
 }
@@ -381,7 +380,7 @@ async function updateSectionsOrder() {
 function renderSectionForm(sectionKey) {
     const formContainer = document.getElementById('active-section-form');
     const content = state.currentResume.content;
-    
+
     document.querySelectorAll('.section-nav-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.section === sectionKey);
     });
@@ -511,7 +510,7 @@ function renderSectionForm(sectionKey) {
                 <!-- Internal template switcher -->
             </div>
         `;
-        
+
         const marginInput = document.getElementById('margin-input');
         if (marginInput) {
             marginInput.oninput = debounce(() => {
@@ -531,11 +530,11 @@ function renderSectionForm(sectionKey) {
             const section = btn.dataset.section;
             const index = btn.dataset.index;
             let context = state.currentResume.content;
-            
+
             if (type === 'description' && section && index !== undefined) {
                 context = state.currentResume.content[section][parseInt(index)];
             }
-            
+
             showToast('Generating detailed AI suggestion...', 'info');
             btn.innerHTML = '<i data-lucide="loader"></i>';
             lucide.createIcons();
@@ -550,6 +549,13 @@ function renderSectionForm(sectionKey) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type, context, stream: true })
                 });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errMsg = `HTTP ${response.status}`;
+                    try { errMsg = JSON.parse(errorText).message || errMsg; } catch(e){}
+                    throw new Error(errMsg);
+                }
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -576,11 +582,11 @@ function renderSectionForm(sectionKey) {
                                         textarea.scrollTop = textarea.scrollHeight;
                                     }
                                 }
-                            } catch (e) {}
+                            } catch (e) { }
                         }
                     }
                 }
-                
+
                 if (type === 'summary') {
                     state.currentResume.content.summary = fullText;
                 } else if (type === 'description') {
@@ -788,7 +794,7 @@ async function fetchTemplatesForEditor() {
 
     const cached = localStorage.getItem('cached_templates');
     if (cached) {
-        try { renderTemplates(JSON.parse(cached)); } catch(e){}
+        try { renderTemplates(JSON.parse(cached)); } catch (e) { }
     } else {
         list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem;"><i data-lucide="loader" style="animation: spin 1s linear infinite;"></i></div>';
         lucide.createIcons();
@@ -812,7 +818,7 @@ window.switchTemplate = async (templateId) => {
         renderSectionForm('design');
         updatePreview();
         showToast('Template switched!');
-    } catch (err) {}
+    } catch (err) { }
 };
 
 // saveResume: only updates in-memory state + refreshes preview. No DB write.
@@ -849,15 +855,15 @@ function updatePreview() {
         body,
         signal: previewAbortController.signal
     })
-    .then(r => r.text())
-    .then(html => {
-        // Use srcdoc instead of document.write to prevent browser blocking/flashing
-        iframe.srcdoc = html;
-    })
-    .catch(err => {
-        if (err.name === 'AbortError') return;
-        console.error('Preview error:', err);
-    });
+        .then(r => r.text())
+        .then(html => {
+            // Use srcdoc instead of document.write to prevent browser blocking/flashing
+            iframe.srcdoc = html;
+        })
+        .catch(err => {
+            if (err.name === 'AbortError') return;
+            console.error('Preview error:', err);
+        });
 }
 
 // --- Utils ---
@@ -880,8 +886,8 @@ function debounce(func, timeout = 300) {
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     // Eagerly wake up the backend to prevent cold start delays
-    fetch(`${API_BASE}/templates`).catch(() => {});
-    
+    fetch(`${API_BASE}/templates`).catch(() => { });
+
     lucide.createIcons();
 
     // Nav Actions — no auth required, go directly to templates
@@ -916,12 +922,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('[data-panel="analysis-panel"]').click();
 
         const data = await apiFetch(`/resumes/${state.currentResume.id}/ats`);
-        
+
         // Update Sidebar
         document.getElementById('sidebar-ats-percentage').innerText = `${data.ats.score}%`;
         const sidebarFeedback = document.getElementById('sidebar-ats-feedback');
         sidebarFeedback.innerHTML = data.ats.topImprovements.map(imp => `<p>💡 ${imp}</p>`).join('');
-        
+
         showToast('ATS analysis updated in sidebar!', 'success');
     };
 
@@ -975,7 +981,7 @@ async function generateClientPdf() {
     const mobileBtn = document.getElementById('mobile-bottom-download-btn');
     const originalText = btn.innerHTML;
     const originalMobileText = mobileBtn ? mobileBtn.innerHTML : '';
-    
+
     btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating PDF...';
     if (mobileBtn) mobileBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating...';
     lucide.createIcons();
@@ -993,9 +999,10 @@ async function generateClientPdf() {
             })
         }).then(r => r.text());
 
-        // Create an offscreen iframe to isolate CSS and guarantee exact A4 rendering size (794px width)
+        // Create an offscreen iframe to isolate CSS and guarantee exact A4 rendering size
         const printFrame = document.createElement('iframe');
-        printFrame.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;height:1123px;border:none;';
+        // Keep it in the viewport but invisible, to prevent html2canvas offset bugs
+        printFrame.style.cssText = 'position:fixed;left:0;top:0;width:794px;height:1123px;border:none;opacity:0.01;z-index:-9999;pointer-events:none;';
         document.body.appendChild(printFrame);
 
         await new Promise(resolve => {
@@ -1008,21 +1015,24 @@ async function generateClientPdf() {
         // Wait for external fonts/images to load fully inside the iframe
         await new Promise(r => setTimeout(r, 1000));
 
-        // Get the specific element to capture
-        const element = printFrame.contentDocument.getElementById('pdf-content') || printFrame.contentDocument.body;
+        const element = printFrame.contentDocument.getElementById('pdf-content');
+        
+        // Force the element to explicitly declare its width so html2pdf calculates the ratio correctly
+        element.style.width = '794px';
+        element.style.maxWidth = '794px';
 
         const opt = {
-            margin:       0,
-            filename:     `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { 
-                scale: 2, 
-                useCORS: true, 
-                windowWidth: 794,
-                scrollY: 0,
-                scrollX: 0
+            margin: 0,
+            filename: `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`,
+            image: { type: 'jpeg', quality: 1.0 },
+            html2canvas: {
+                scale: 2, // Doubles the resolution (Canvas becomes 1588 x 2246)
+                useCORS: true,
+                letterRendering: true,
+                window: printFrame.contentWindow 
             },
-            jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
+            // CRITICAL FIX: Match the PDF size EXACTLY to the scaled canvas size so html2pdf doesn't try to scale it and cause the 2x zoom bug!
+            jsPDF: { unit: 'px', format: [1588, 2246], orientation: 'portrait' }
         };
 
         // Use html2pdf to generate and trigger direct file download
@@ -1050,7 +1060,7 @@ async function generateClientPdf() {
                 title: document.getElementById('resume-title-input').value
             })
         });
-    } catch(e) {}
+    } catch (e) { }
 }
 
 async function updateDesignSetting(key, value) {
@@ -1062,4 +1072,4 @@ async function updateDesignSetting(key, value) {
 }
 
 // No-op: kept so old references don't break, but does nothing
-const saveResumeDebounced = () => {};
+const saveResumeDebounced = () => { };
