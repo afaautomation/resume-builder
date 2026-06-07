@@ -612,14 +612,27 @@ button {
     .input-group.full { grid-column: 1; }
 
     .editor-preview {
+        flex-direction: column;
+        align-items: center;
         padding: 1rem;
         background: #1e293b;
-        min-height: 400px;
+        min-height: auto;
+    }
+
+    #zoom-check-trigger-btn {
+        display: inline-flex !important;
     }
 
     .preview-frame-container {
-        border-radius: 0;
-        height: 600px;
+        position: relative !important;
+        overflow: hidden !important;
+        background: #1e293b !important;
+        border-radius: var(--radius-sm) !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 600px; /* fallback */
     }
 
     .templates-grid-container { padding: 80px 1rem 40px; }

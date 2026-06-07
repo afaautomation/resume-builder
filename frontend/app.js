@@ -903,11 +903,143 @@ function updatePreview() {
         .then(html => {
             // Use srcdoc instead of document.write to prevent browser blocking/flashing
             iframe.srcdoc = html;
+            setTimeout(() => {
+                autoFitMobilePreview();
+            }, 100);
         })
         .catch(err => {
             if (err.name === 'AbortError') return;
             console.error('Preview error:', err);
         });
+}
+
+// --- Mobile Zoom & Fit Handlers ---
+let modalZoomMode = '100'; // '100' or 'fit'
+
+function autoFitMobilePreview() {
+    const iframe = document.getElementById('resume-preview-iframe');
+    const container = document.querySelector('.preview-frame-container');
+    
+    if (window.innerWidth > 992) {
+        // Desktop: Reset inline styles
+        if (iframe) {
+            iframe.style.transform = '';
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.position = '';
+            iframe.style.top = '';
+            iframe.style.left = '';
+            iframe.style.marginLeft = '';
+            iframe.style.transformOrigin = '';
+        }
+        if (container) {
+            container.style.height = '100%';
+        }
+        return;
+    }
+
+    if (!iframe || !container) return;
+
+    const containerWidth = container.clientWidth;
+    if (containerWidth === 0) return; // Hidden or not layouted yet
+
+    const baseWidth = 800;
+    const baseHeight = 1130;
+    const scale = containerWidth / baseWidth;
+
+    iframe.style.width = `${baseWidth}px`;
+    iframe.style.height = `${baseHeight}px`;
+    iframe.style.transform = `scale(${scale})`;
+    iframe.style.transformOrigin = 'top center';
+    iframe.style.position = 'absolute';
+    iframe.style.top = '0';
+    iframe.style.left = '50%';
+    iframe.style.marginLeft = `-${baseWidth / 2}px`;
+
+    container.style.height = `${baseHeight * scale}px`;
+}
+
+function updateModalZoom() {
+    const wrapper = document.getElementById('modal-iframe-wrapper');
+    const container = document.querySelector('#zoom-check-modal .modal-body');
+    if (!wrapper || !container) return;
+
+    const baseWidth = 800;
+    const baseHeight = 1130;
+
+    if (modalZoomMode === 'fit') {
+        const padding = 32;
+        const availableWidth = container.clientWidth - padding;
+        const scale = Math.min(1.0, availableWidth / baseWidth);
+        
+        wrapper.style.transform = `scale(${scale})`;
+        wrapper.style.width = `${baseWidth * scale}px`;
+        wrapper.style.height = `${baseHeight * scale}px`;
+    } else {
+        // 100% Size
+        wrapper.style.transform = 'scale(1)';
+        wrapper.style.width = `${baseWidth}px`;
+        wrapper.style.height = `${baseHeight}px`;
+    }
+}
+
+function setupMobileZoom() {
+    const triggerBtn = document.getElementById('zoom-check-trigger-btn');
+    const modal = document.getElementById('zoom-check-modal');
+    const modalIframe = document.getElementById('modal-preview-iframe');
+    const mainIframe = document.getElementById('resume-preview-iframe');
+
+    if (triggerBtn && modal && modalIframe) {
+        triggerBtn.onclick = () => {
+            if (mainIframe) {
+                modalIframe.srcdoc = mainIframe.srcdoc;
+                modal.classList.remove('hidden');
+                lucide.createIcons();
+                
+                // Allow modal to display and obtain layout size
+                setTimeout(() => {
+                    modalZoomMode = '100'; // Default to 100% check size
+                    updateModalZoom();
+                }, 100);
+            }
+        };
+
+        const fitBtn = document.getElementById('modal-zoom-fit');
+        const zoom100Btn = document.getElementById('modal-zoom-100');
+
+        if (fitBtn) {
+            fitBtn.onclick = () => {
+                modalZoomMode = 'fit';
+                updateModalZoom();
+            };
+        }
+
+        if (zoom100Btn) {
+            zoom100Btn.onclick = () => {
+                modalZoomMode = '100';
+                updateModalZoom();
+            };
+        }
+    }
+
+    // Bind window resize event
+    window.addEventListener('resize', () => {
+        if (state.activeView === 'editor') {
+            autoFitMobilePreview();
+            if (modal && !modal.classList.contains('hidden')) {
+                updateModalZoom();
+            }
+        }
+    });
+
+    // Make sure we auto-fit when we load the main preview
+    if (mainIframe) {
+        mainIframe.addEventListener('load', () => {
+            if (state.activeView === 'editor') {
+                autoFitMobilePreview();
+            }
+        });
+    }
 }
 
 // --- Utils ---
@@ -1020,6 +1152,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fontFamilySelect) {
         fontFamilySelect.onchange = () => updateDesignSetting('fontFamily', fontFamilySelect.value);
     }
+
+    // Initialize Mobile Zoom & Fit controls
+    setupMobileZoom();
 });
 
 async function generateClientPdf() {
