@@ -55,10 +55,10 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     margins = { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
   } = design || {};
 
-  const mTop = mmToPx(margins.top);
-  const mRight = mmToPx(margins.right);
-  const mBottom = mmToPx(margins.bottom);
-  const mLeft = mmToPx(margins.left);
+  const mTop = mmToPx(margins.top ?? 12.7);
+  const mRight = mmToPx(margins.right ?? 12.7);
+  const mBottom = mmToPx(margins.bottom ?? 12.7);
+  const mLeft = mmToPx(margins.left ?? 12.7);
 
   const cssVars = `
     :root {
@@ -77,10 +77,6 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
   const baseStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@400;500;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap');
     
-    :root {
-      --font-size: 10pt;
-    }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html {
@@ -89,8 +85,8 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     
     body {
       font-family: var(--font-family) !important;
-      font-size: var(--font-size);
-      line-height: var(--line-height);
+      font-size: var(--font-size) !important;
+      line-height: var(--line-height) !important;
       color: #1e293b;
       background: #fff;
       margin: 0 !important;
@@ -133,13 +129,23 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
   const compiled = Handlebars.compile(templateHtml);
   const body = compiled({ ...normalizedResume, design });
 
+  let compiledCss = templateCss || '';
+  if (templateCss) {
+    try {
+      const compileCss = Handlebars.compile(templateCss);
+      compiledCss = compileCss({ ...normalizedResume, design });
+    } catch (err) {
+      console.error('Error compiling template CSS:', err);
+    }
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Resume</title>
-  <style>${cssVars}${baseStyles}${templateCss || ''}</style>
+  <style>${cssVars}${baseStyles}${compiledCss}</style>
 </head>
 <body>
   <div class="page" id="pdf-content">

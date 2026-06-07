@@ -458,6 +458,7 @@ function renderSectionForm(sectionKey) {
             state.currentResume.content.skills.push('');
             renderSectionForm('skills');
             updatePreview();
+            saveResumeDebounced();
         };
 
         // Special handling for skill inputs
@@ -466,6 +467,7 @@ function renderSectionForm(sectionKey) {
                 const idx = parseInt(input.dataset.index);
                 state.currentResume.content.skills[idx] = input.value;
                 updatePreview();
+                saveResumeDebounced();
             }, 500);
         });
     } else if (sectionKey === 'design') {
@@ -517,6 +519,7 @@ function renderSectionForm(sectionKey) {
                 const m = parseFloat(marginInput.value);
                 state.currentResume.design.margins = { top: m, right: m, bottom: m, left: m };
                 updatePreview();
+                saveResumeDebounced();
             }, 500);
         }
 
@@ -610,6 +613,7 @@ function renderSectionForm(sectionKey) {
                 }
 
                 updatePreview();
+                saveResumeDebounced();
                 showToast('AI suggestion applied!', 'success');
 
             } catch (err) {
@@ -630,9 +634,9 @@ function renderSectionForm(sectionKey) {
     });
 
 
-    // Attach live preview update on every input change (no save to DB)
+    // Attach live preview update on every input change & trigger debounced save
     formContainer.querySelectorAll('input, textarea, select').forEach(input => {
-        input.oninput = debounce(() => {
+        const handler = debounce(() => {
             const path = input.dataset.path;
             const value = input.value;
             const index = input.dataset.index;
@@ -657,7 +661,13 @@ function renderSectionForm(sectionKey) {
             }
 
             updatePreview();
+            saveResumeDebounced();
         }, 500);
+
+        input.oninput = handler;
+        if (input.tagName.toLowerCase() === 'select') {
+            input.onchange = handler;
+        }
     });
 
 
@@ -785,18 +795,21 @@ function addListItem(section) {
     state.currentResume.content[section].push({});
     renderSectionForm(section);
     updatePreview();
+    saveResumeDebounced();
 }
 
 window.removeListItem = (section, index) => {
     state.currentResume.content[section].splice(index, 1);
     renderSectionForm(section);
     updatePreview();
+    saveResumeDebounced();
 };
 
 window.removeSkill = (index) => {
     state.currentResume.content.skills.splice(index, 1);
     renderSectionForm('skills');
     updatePreview();
+    saveResumeDebounced();
 };
 
 async function fetchTemplatesForEditor() {
@@ -839,10 +852,11 @@ async function fetchTemplatesForEditor() {
 
 window.switchTemplate = async (templateId) => {
     try {
-        // Update local state only — no API call
+        // Update local state and trigger debounced save
         state.currentResume.template_id = templateId;
         renderSectionForm('design');
         updatePreview();
+        saveResumeDebounced();
         showToast('Template switched!');
     } catch (err) { }
 };
@@ -996,8 +1010,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const primaryColorInput = document.getElementById('design-primary-color');
     const fontFamilySelect = document.getElementById('design-font-family');
 
-    primaryColorInput.oninput = () => updateDesignSetting('primaryColor', primaryColorInput.value);
-    fontFamilySelect.onchange = () => updateDesignSetting('fontFamily', fontFamilySelect.value);
+    if (primaryColorInput) {
+        primaryColorInput.oninput = () => updateDesignSetting('primaryColor', primaryColorInput.value);
+    }
+    if (fontFamilySelect) {
+        fontFamilySelect.onchange = () => updateDesignSetting('fontFamily', fontFamilySelect.value);
+    }
 });
 
 async function generateClientPdf() {
@@ -1145,9 +1163,41 @@ async function updateDesignSetting(key, value) {
     if (!state.currentResume) return;
     if (!state.currentResume.design) state.currentResume.design = {};
     state.currentResume.design[key] = value;
-    // Update preview immediately — no save to DB
     updatePreview();
+    saveResumeDebounced();
 }
 
-// No-op: kept so old references don't break, but does nothing
-const saveResumeDebounced = () => { };
+// saveResumeDebounced: performs a debounced PATCH to save the current state to the DB.
+const saveResumeDebounced = debounce(async () => {
+    if (!state.currentResume) return;
+    const statusEl = document.querySelector('.save-status');
+    if (statusEl) {
+        statusEl.innerHTML = '<i data-lucide="loader" class="spin" style="animation: spin 1.5s linear infinite; display: inline-block;"></i> Saving...';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    try {
+        const titleEl = document.getElementById('resume-title-input');
+        const titleVal = titleEl ? titleEl.value : (state.currentResume.title || 'Untitled Resume');
+
+        await apiFetch(`/resumes/${state.currentResume.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                content: state.currentResume.content,
+                design: state.currentResume.design,
+                title: titleVal
+            })
+        });
+
+        if (statusEl) {
+            statusEl.innerHTML = '<i data-lucide="check"></i> Saved';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    } catch (err) {
+        console.error('Failed to auto-save:', err);
+        if (statusEl) {
+            statusEl.innerHTML = '<i data-lucide="alert-triangle"></i> Save failed';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+}, 1500);
