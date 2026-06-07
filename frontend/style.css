@@ -450,7 +450,7 @@ button {
     font-weight: 500;
 }
 
-.input-group input, .input-group textarea {
+.input-group input, .input-group textarea, .input-group select {
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);

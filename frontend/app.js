@@ -490,7 +490,7 @@ function renderSectionForm(sectionKey) {
                     </div>
                     <div class="input-group">
                         <label>Font Family</label>
-                        <select data-path="design.fontFamily" style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem; color: white;">
+                        <select data-path="design.fontFamily" style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem; color: var(--text-main);">
                             <option value="Inter, sans-serif" ${design.fontFamily === 'Inter, sans-serif' ? 'selected' : ''}>Inter (Modern Sans)</option>
                             <option value="Merriweather, serif" ${design.fontFamily === 'Merriweather, serif' ? 'selected' : ''}>Merriweather (Classic Serif)</option>
                             <option value="Roboto, sans-serif" ${design.fontFamily === 'Roboto, sans-serif' ? 'selected' : ''}>Roboto (Clean Sans)</option>
