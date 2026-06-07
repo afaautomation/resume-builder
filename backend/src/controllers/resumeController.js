@@ -4,7 +4,7 @@ const { scoreResume } = require('../services/atsService');
 const logger = require('../config/logger');
 
 const DEFAULT_CONTENT = JSON.stringify({
-  contact: { name: '', email: '', phone: '', location: '', linkedin: '', github: '', website: '' },
+  contact: { name: '', title: '', email: '', phone: '', location: '', linkedin: '', github: '', website: '' },
   summary: '', experience: [], education: [], skills: [], certifications: [], projects: [], languages: [], awards: [], customSections: [],
 });
 const DEFAULT_DESIGN = JSON.stringify({ primaryColor: '#2563EB', fontFamily: 'Inter, sans-serif', fontSize: 11 });

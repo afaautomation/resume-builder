@@ -394,6 +394,10 @@ function renderSectionForm(sectionKey) {
                     <input type="text" data-path="contact.name" value="${content.contact?.name || ''}">
                 </div>
                 <div class="input-group">
+                    <label>Job Title</label>
+                    <input type="text" data-path="contact.title" value="${content.contact?.title || ''}">
+                </div>
+                <div class="input-group">
                     <label>Email</label>
                     <input type="email" data-path="contact.email" value="${content.contact?.email || ''}">
                 </div>

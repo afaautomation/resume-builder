@@ -15,20 +15,24 @@ const templates = [
     tags: JSON.stringify(['clean', 'modern']),
     html_content: `
       <div class="resume-container">
-        <header>
-          <h1>{{contact.name}}</h1>
-          <div class="contact-bar">
-            <span>{{contact.email}}</span> | <span>{{contact.phone}}</span> | <span>{{contact.location}}</span>
-            {{#if contact.linkedin}} | <span>LinkedIn: {{contact.linkedin}}</span>{{/if}}
-            {{#if contact.github}} | <span>GitHub: {{contact.github}}</span>{{/if}}
+        <header class="bleed-header">
+          <div class="header-left">
+            <h1>{{contact.name}}</h1>
+            {{#if contact.title}}<div class="title-sub">{{contact.title}}</div>{{else}}<div class="title-sub">Marketing Manager</div>{{/if}}
+          </div>
+          <div class="header-right">
+            {{#if contact.phone}}<div>{{contact.phone}}</div>{{/if}}
+            {{#if contact.email}}<div>{{contact.email}}</div>{{/if}}
+            {{#if contact.linkedin}}<div>{{contact.linkedin}}</div>{{/if}}
+            {{#if contact.location}}<div>{{contact.location}}</div>{{/if}}
           </div>
         </header>
-        {{#if summary}}<section><h2>Summary</h2><p>{{nl2br summary}}</p></section>{{/if}}
-        {{#if experience.length}}<section><h2>Experience</h2>{{#each experience}}<div class="item"><div class="item-header"><h3>{{title}} @ {{company}}</h3><span class="date">{{startDate}} - {{endDate}}</span></div><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-        {{#if education.length}}<section><h2>Education</h2>{{#each education}}<div class="item"><div class="item-header"><h3>{{degree}}</h3><span class="date">{{endDate}}</span></div><p>{{institution}}</p></div>{{/each}}</section>{{/if}}
+        {{#if summary}}<section><h2>Professional Summary</h2><p>{{nl2br summary}}</p></section>{{/if}}
+        {{#if experience.length}}<section><h2>Professional Experience</h2>{{#each experience}}<div class="item"><div class="item-header"><div><h3>{{title}}</h3><div class="company">{{company}}</div></div><span class="date">{{startDate}} - {{endDate}}</span></div><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
+        {{#if education.length}}<section><h2>Education</h2>{{#each education}}<div class="item"><div class="item-header"><div><h3>{{institution}}</h3><div class="degree">{{degree}}</div></div><span class="date">{{endDate}}</span></div></div>{{/each}}</section>{{/if}}
         {{#if projects.length}}<section><h2>Projects</h2>{{#each projects}}<div class="item"><div class="item-header"><h3>{{name}}</h3>{{#if link}}<a href="{{link}}">{{link}}</a>{{/if}}</div><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-        {{#if certifications.length}}<section><h2>Certifications</h2>{{#each certifications}}<div class="item"><div class="item-header"><h3>{{name}}</h3><span class="date">{{date}}</span></div><p>{{issuer}}</p></div>{{/each}}</section>{{/if}}
-        {{#if skills.length}}<section><h2>Skills</h2><div class="skills-grid">{{#each skills}}<span class="skill-tag">{{this}}</span>{{/each}}</div></section>{{/if}}
+        {{#if certifications.length}}<section><h2>Certifications</h2><div class="skills-list">{{#each certifications}}<div class="skill-item">{{name}}{{#if issuer}} - {{issuer}}{{/if}}</div>{{/each}}</div></section>{{/if}}
+        {{#if skills.length}}<section><h2>Skills</h2><div class="skills-list">{{#each skills}}<div class="skill-item">{{this}}</div>{{/each}}</div></section>{{/if}}
         {{#if additional.length}}<section><h2>Additional Information</h2>{{#each additional}}<div class="item"><strong>{{title}}:</strong> {{value}}</div>{{/each}}</section>{{/if}}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
           {{#if languages.length}}<section><h2>Languages</h2>{{#each languages}}<div><strong>{{name}}</strong>: {{level}}</div>{{/each}}</section>{{/if}}
@@ -42,16 +46,102 @@ const templates = [
         --font-family: {{#if design.fontFamily}}{{{design.fontFamily}}}{{else}}'Inter', sans-serif{{/if}};
       }
       body { font-family: var(--font-family); color: #1e293b; line-height: var(--line-height, 1.4); }
-      h1 { font-size: 2.4em; color: var(--primary); margin-bottom: 2px; }
-      h2 { font-size: 1.3em; border-bottom: 1.5px solid var(--primary); padding-bottom: 2px; margin-top: 12px; margin-bottom: 8px; color: var(--primary); text-transform: uppercase; }
-      .contact-bar { font-size: 0.9em; color: #64748b; margin-bottom: 15px; }
-      .item { margin-bottom: 10px; }
-      .item-header { display: flex; justify-content: space-between; align-items: baseline; }
-      .item-header h3 { font-size: 1.1em; font-weight: 600; margin: 0; }
-      .date { font-size: 0.9em; color: #64748b; }
-      .skills-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-      .skill-tag { background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; border: 1px solid #e2e8f0; }
-      p { margin: 0; font-size: 1em; }
+      header.bleed-header {
+        background: var(--primary);
+        color: #ffffff;
+        padding: 24px 30px;
+        margin-top: calc(-1 * var(--margin-top)) !important;
+        margin-right: calc(-1 * var(--margin-right)) !important;
+        margin-left: calc(-1 * var(--margin-left)) !important;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .header-left h1 {
+        font-size: 2.6em;
+        color: #ffffff !important;
+        margin: 0 0 4px 0;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+      .title-sub {
+        font-size: 1.2em;
+        color: rgba(255, 255, 255, 0.85);
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 500;
+      }
+      .header-right {
+        text-align: right;
+        font-size: 0.9em;
+        line-height: 1.4;
+      }
+      .header-right div {
+        margin-bottom: 2px;
+      }
+      h2 {
+        font-size: 1.3em;
+        border-bottom: 1.5px solid var(--primary);
+        padding-bottom: 3px;
+        margin-top: 18px;
+        margin-bottom: 10px;
+        color: var(--primary);
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .item { margin-bottom: 12px; }
+      .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 4px;
+      }
+      .item-header h3 {
+        font-size: 1.1em;
+        font-weight: 700;
+        margin: 0;
+        color: #1e293b;
+        text-transform: uppercase;
+      }
+      .company {
+        font-style: italic;
+        color: #475569;
+        font-size: 0.95em;
+        margin-top: 2px;
+      }
+      .degree {
+        color: #475569;
+        font-size: 0.95em;
+        margin-top: 2px;
+      }
+      .date {
+        font-size: 0.95em;
+        color: #475569;
+        font-weight: 500;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .skills-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .skill-item {
+        font-size: 1em;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .skill-item::before {
+        content: "•";
+        color: var(--primary);
+        font-weight: bold;
+      }
+      p { margin: 0; font-size: 1em; color: #334155; }
     `
   },
   {
