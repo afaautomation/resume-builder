@@ -9,12 +9,18 @@ const isLocalDev = hostname === 'localhost' ||
     hostname.startsWith('192.168.') ||
     hostname.startsWith('10.');
 
-// Determine API_BASE dynamically to support both local development and hosted deployments
+// Determine API_BASE dynamically to support local development, Hugging Face, and Hostinger deployments
 let API_BASE = '/api';
 if (isLocalDev) {
     const port = window.location.port;
     if (port && port !== '5000') {
         API_BASE = `http://${hostname}:5000/api`;
+    }
+} else {
+    // If hosted on Hostinger (or other custom domains) but the backend is hosted on Hugging Face,
+    // point API requests to the Hugging Face backend space.
+    if (!hostname.endsWith('.hf.space') && !hostname.endsWith('.huggingface.co')) {
+        API_BASE = 'https://afaautomation-resume.hf.space/api';
     }
 }
 
