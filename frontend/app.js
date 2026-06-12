@@ -868,7 +868,10 @@ window.switchTemplate = async (templateId) => {
 // saveResume: only updates in-memory state + refreshes preview. No DB write.
 function saveResume() {
     const statusEl = document.querySelector('.save-status');
-    if (statusEl) statusEl.innerHTML = '<i data-lucide="eye"></i> Preview updated';
+    if (statusEl) {
+        statusEl.className = 'save-status info';
+        statusEl.innerHTML = '<i data-lucide="eye"></i> Preview updated';
+    }
     updatePreview();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -1269,8 +1272,16 @@ async function generateClientPdf() {
                 compress: true
             }
         };
+        const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+        const url = window.URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = opt.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
 
-        await html2pdf().set(opt).from(element).save();
         showToast('PDF downloaded successfully!', 'success');
 
     } catch (err) {
@@ -1311,6 +1322,7 @@ const saveResumeDebounced = debounce(async () => {
     if (!state.currentResume) return;
     const statusEl = document.querySelector('.save-status');
     if (statusEl) {
+        statusEl.className = 'save-status saving';
         statusEl.innerHTML = '<i data-lucide="loader" class="spin" style="animation: spin 1.5s linear infinite; display: inline-block;"></i> Saving...';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
@@ -1329,12 +1341,14 @@ const saveResumeDebounced = debounce(async () => {
         });
 
         if (statusEl) {
+            statusEl.className = 'save-status saved';
             statusEl.innerHTML = '<i data-lucide="check"></i> Saved';
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     } catch (err) {
         console.error('Failed to auto-save:', err);
         if (statusEl) {
+            statusEl.className = 'save-status failed';
             statusEl.innerHTML = '<i data-lucide="alert-triangle"></i> Save failed';
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }

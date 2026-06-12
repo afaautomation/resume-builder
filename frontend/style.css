@@ -511,15 +511,25 @@ button {
 }
 
 .toast {
-    padding: 1rem 1.5rem;
-    background: #1e293b;
-    border-left: 4px solid var(--primary);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-lg);
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--primary);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1.15rem;
     animation: slideInRight 0.3s ease-out;
+    pointer-events: none;
 }
 
-.toast.error { border-left-color: #ef4444; }
+.toast.error {
+    color: #ef4444;
+}
+
+.toast.info {
+    color: var(--primary);
+}
 
 @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
@@ -890,46 +900,72 @@ button {
 .resume-title-edit {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    padding: 0.4rem 0.8rem;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
+    gap: 0.75rem;
+    background: transparent;
+    padding: 0.2rem 0;
+    border: none;
     transition: var(--transition);
-}
-
-.resume-title-edit:focus-within {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 #resume-title-input {
     background: transparent;
     border: none;
+    border-bottom: 2px solid transparent;
     outline: none;
-    color: var(--text-main);
-    font-size: 1rem;
+    color: #0f172a;
+    font-size: 1.05rem;
     font-weight: 600;
-    width: 200px;
+    width: 180px;
     font-family: 'Outfit', sans-serif;
+    transition: var(--transition);
+    padding: 0.1rem 0;
+}
+
+#resume-title-input:focus {
+    border-bottom-color: var(--primary);
 }
 
 .save-status {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: #10b981; /* Success Green */
-    font-weight: 500;
-    opacity: 0.8;
-    padding-left: 0.8rem;
-    border-left: 1px solid var(--border);
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 100px;
+    border: 1px solid transparent;
+    transition: var(--transition);
 }
 
 .save-status i {
-    width: 16px;
-    height: 16px;
+    width: 13px;
+    height: 13px;
+    stroke-width: 3;
+}
+
+/* Save status state badges */
+.save-status.saved {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.15);
+}
+
+.save-status.saving {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.15);
+}
+
+.save-status.failed {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.15);
+}
+
+.save-status.info {
+    color: var(--primary);
+    background: var(--primary-light);
+    border-color: rgba(37, 99, 235, 0.15);
 }
 
 /* Editor Navigation */
@@ -938,7 +974,7 @@ button {
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1.5rem;
-    background: rgba(15, 23, 42, 0.8);
+    background: #ffffff;
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     height: 64px;
