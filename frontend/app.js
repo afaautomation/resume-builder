@@ -9,7 +9,14 @@ const isLocalDev = hostname === 'localhost' ||
     hostname.startsWith('192.168.') ||
     hostname.startsWith('10.');
 
-const API_BASE = 'https://afaautomation-resume.hf.space/api';
+// Determine API_BASE dynamically to support both local development and hosted deployments
+let API_BASE = '/api';
+if (isLocalDev) {
+    const port = window.location.port;
+    if (port && port !== '5000') {
+        API_BASE = `http://${hostname}:5000/api`;
+    }
+}
 
 
 // --- State Management ---
@@ -1178,7 +1185,6 @@ async function generateClientPdf() {
         const htmlText = await fetch(`${API_BASE}/export/preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({
                 content: state.currentResume.content,
                 templateId: state.currentResume.template_id,
