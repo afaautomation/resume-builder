@@ -20,6 +20,70 @@ const FAST_MODEL_CHAIN = [
 
 const COOLDOWN_DURATION = 5 * 60 * 1000; // 5 minutes cooldown for unhealthy providers
 
+class StreamCleaner {
+  constructor(type) {
+    this.type = type;
+    this.buffer = '';
+    this.lineStart = true;
+  }
+
+  process(chunk, onCleanedChunk) {
+    if (this.type === 'summary') {
+      onCleanedChunk(chunk);
+      return;
+    }
+
+    this.buffer += chunk;
+
+    // Process lines
+    while (true) {
+      if (this.lineStart) {
+        // We are at the start of a line. We need to wait until we have a newline OR at least 10 characters
+        // so we can reliably strip any leading bullet points/numbers.
+        const newlineIndex = this.buffer.indexOf('\n');
+        if (newlineIndex !== -1 || this.buffer.length >= 10) {
+          // Strip leading bullets/numbers from the start of the buffer
+          this.buffer = this.buffer
+            .replace(/^[\s*•\-+]+/, '')
+            .replace(/^\d+[\.\)]\s*/, '');
+          
+          this.lineStart = false;
+        } else {
+          // Wait for more chunks to decide
+          break;
+        }
+      }
+
+      // Now we are in the middle of a line (lineStart is false)
+      const newlineIndex = this.buffer.indexOf('\n');
+      if (newlineIndex !== -1) {
+        // We found a newline. Emit everything up to and including the newline.
+        const lineContent = this.buffer.slice(0, newlineIndex + 1);
+        onCleanedChunk(lineContent);
+        this.buffer = this.buffer.slice(newlineIndex + 1);
+        this.lineStart = true; // Next chars will be start of a line
+      } else {
+        // No newline, emit the entire buffer
+        onCleanedChunk(this.buffer);
+        this.buffer = '';
+        break;
+      }
+    }
+  }
+
+  flush(onCleanedChunk) {
+    if (this.buffer) {
+      if (this.lineStart) {
+        this.buffer = this.buffer
+          .replace(/^[\s*•\-+]+/, '')
+          .replace(/^\d+[\.\)]\s*/, '');
+      }
+      onCleanedChunk(this.buffer);
+      this.buffer = '';
+    }
+  }
+}
+
 class AiService {
   constructor() {
     this.instances = [];
@@ -267,15 +331,21 @@ class AiService {
       const modelObj = instance.fastModels[0].model;
 
       try {
+        const cleaner = new StreamCleaner(type);
+        const cleanedOnChunk = (chunk) => {
+          if (onChunk) onChunk(chunk);
+        };
+
         const result = await modelObj.generateContentStream(prompt);
         let fullText = '';
         for await (const chunk of result.stream) {
           const chunkText = chunk.text();
           if (chunkText) {
             fullText += chunkText;
-            if (onChunk) onChunk(chunkText);
+            cleaner.process(chunkText, cleanedOnChunk);
           }
         }
+        cleaner.flush(cleanedOnChunk);
         if (fullText) return;
       } catch (err) {
         logger.error(`[AI Stream Gemini Error] ${err.message}`);
@@ -291,6 +361,11 @@ class AiService {
     if (openRouterKey && this.checkHealth('openrouter')) {
       logger.info('[AI Stream] Falling back to OpenRouter streaming...');
       try {
+        const cleaner = new StreamCleaner(type);
+        const cleanedOnChunk = (chunk) => {
+          if (onChunk) onChunk(chunk);
+        };
+
         const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
           model: 'google/gemini-2.5-flash',
           messages: [{ role: 'user', content: prompt }],
@@ -323,8 +398,8 @@ class AiService {
               try {
                 const parsed = JSON.parse(dataStr);
                 const content = parsed.choices?.[0]?.delta?.content;
-                if (content && onChunk) {
-                  onChunk(content);
+                if (content) {
+                  cleaner.process(content, cleanedOnChunk);
                 }
               } catch (e) {}
             }
@@ -337,10 +412,11 @@ class AiService {
                 try {
                   const parsed = JSON.parse(dataStr);
                   const content = parsed.choices?.[0]?.delta?.content;
-                  if (content && onChunk) onChunk(content);
+                  if (content) cleaner.process(content, cleanedOnChunk);
                 } catch (e) {}
               }
             }
+            cleaner.flush(cleanedOnChunk);
             resolve();
           });
 
@@ -364,6 +440,11 @@ class AiService {
     if (xaiKey && this.checkHealth('grok')) {
       logger.info('[AI Stream] Falling back to Grok streaming...');
       try {
+        const cleaner = new StreamCleaner(type);
+        const cleanedOnChunk = (chunk) => {
+          if (onChunk) onChunk(chunk);
+        };
+
         const response = await axios.post('https://api.x.ai/v1/chat/completions', {
           model: 'grok-2',
           messages: [{ role: 'user', content: prompt }],
@@ -393,8 +474,8 @@ class AiService {
               try {
                 const parsed = JSON.parse(dataStr);
                 const content = parsed.choices?.[0]?.delta?.content;
-                if (content && onChunk) {
-                  onChunk(content);
+                if (content) {
+                  cleaner.process(content, cleanedOnChunk);
                 }
               } catch (e) {}
             }
@@ -407,10 +488,11 @@ class AiService {
                 try {
                   const parsed = JSON.parse(dataStr);
                   const content = parsed.choices?.[0]?.delta?.content;
-                  if (content && onChunk) onChunk(content);
+                  if (content) cleaner.process(content, cleanedOnChunk);
                 } catch (e) {}
               }
             }
+            cleaner.flush(cleanedOnChunk);
             resolve();
           });
 
@@ -442,8 +524,26 @@ class AiService {
     }
   }
 
+  cleanBulletPoints(text) {
+    if (!text) return '';
+    return text
+      .split('\n')
+      .map(line => {
+        let cleaned = line.trim();
+        cleaned = cleaned.replace(/^[\s*•\-+]+/, '');
+        cleaned = cleaned.replace(/^\d+[\.\)]\s*/, '');
+        return cleaned.trim();
+      })
+      .filter(line => line.length > 0)
+      .join('\n');
+  }
+
   async generateSuggestion(type, context) {
-    return this._generate('fast', this._buildPrompt(type, context));
+    const text = await this._generate('fast', this._buildPrompt(type, context));
+    if (type === 'summary') {
+      return text ? text.trim() : '';
+    }
+    return this.cleanBulletPoints(text);
   }
 
   _buildPrompt(type, context) {
@@ -454,9 +554,11 @@ class AiService {
              `Do NOT use a numbered list or bullet points. Use a premium professional tone. ` +
              `Highlight key strengths, career focus, and major value proposition in 3-4 powerful sentences.`;
     }
-    return `Write 3 professional, high-impact resume bullet points for: ${JSON.stringify(context)}. ` +
-           `Each bullet should explain a specific responsibility and highlight a quantifiable achievement. ` +
-           `Do NOT include numbers (1, 2, 3) at the start. Just the bullet text itself.`;
+    return `You are an expert resume writer. Write 3 professional, high-impact resume bullet points for: ${JSON.stringify(context)}. ` +
+           `Requirements:\n` +
+           `1. Tone & Style: Write EXACTLY like a highly-skilled human professional. Avoid typical robotic AI buzzwords and generic filler (e.g., avoid "spearheaded", "leveraged", "synergy", "cutting-edge", "dynamically"). Write with clear, active, and natural language.\n` +
+           `2. Structure: Each point must explain a specific responsibility and highlight a realistic, quantifiable achievement (e.g., percentages, time saved, revenue, or team size).\n` +
+           `3. Formatting: Output ONLY the raw bullet text itself. Each point must be on a new line. Do NOT prepend any symbols (such as asterisks *, hyphens -, bullets •, or plus signs +) or list numbers (like 1., 2.) at the start. Start each line directly with a strong action verb (e.g., "Designed", "Developed", "Optimized", "Led").`;
   }
 }
 
