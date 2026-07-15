@@ -13,7 +13,6 @@ const MAX_SIZE = (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 10) * 1024 * 102
 });
 
 const ALLOWED_MIME_TYPES = {
-  'application/pdf': 'pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -46,13 +45,13 @@ function mimeFilter(req, file, cb) {
     cb(
       new multer.MulterError(
         'LIMIT_UNEXPECTED_FILE',
-        `Unsupported file type: ${file.mimetype}. Allowed: PDF, DOCX, JPG, PNG`
+        `Unsupported file type: ${file.mimetype}. Allowed: DOCX, JPG, PNG`
       )
     );
   }
 }
 
-/** Upload middleware for resume imports (pdf / docx / image) */
+/** Upload middleware for resume imports (docx / image) */
 const uploadResume = multer({
   storage: resumeStorage,
   fileFilter: mimeFilter,

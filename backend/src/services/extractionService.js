@@ -1,4 +1,3 @@
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const Tesseract = require('tesseract.js');
 const fs = require('fs');
@@ -165,12 +164,6 @@ function buildResumeData(rawText) {
 
 // ─── File Parsers ─────────────────────────────────────────────────────────────
 
-async function parsePdf(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-  const result = await pdfParse(dataBuffer);
-  return result.text;
-}
-
 async function parseDocx(filePath) {
   const result = await mammoth.extractRawText({ path: filePath });
   return result.value;
@@ -194,9 +187,7 @@ async function extractResumeFromFile(filePath, mimeType) {
   let rawText = '';
 
   try {
-    if (mimeType === 'application/pdf') {
-      rawText = await parsePdf(filePath);
-    } else if (
+    if (
       mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ) {
       rawText = await parseDocx(filePath);

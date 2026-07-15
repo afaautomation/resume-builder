@@ -99,7 +99,7 @@ async function initSchema(db) {
       id          TEXT PRIMARY KEY,
       resume_id   TEXT NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
       user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      format      TEXT NOT NULL DEFAULT 'pdf',
+      format      TEXT NOT NULL DEFAULT 'docx',
       file_path   TEXT NOT NULL,
       file_size   INTEGER,
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))

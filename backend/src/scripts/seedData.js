@@ -61,37 +61,163 @@ const templates = [
     is_premium: 0,
     tags: JSON.stringify(['classic', 'serif']),
     html_content: `
-      <div class="resume-container-classic">
-        <header style="text-align:center; border-bottom:2px solid #000; padding-bottom:15px; margin-bottom:20px;">
-          <h1 style="font-size:24pt; text-transform:uppercase; letter-spacing:2px;">{{contact.name}}</h1>
-          <div style="font-size:10pt;">
-            {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
-            {{#if contact.linkedin}} &bull; LI: {{contact.linkedin}}{{/if}}
-            {{#if contact.github}} &bull; GH: {{contact.github}}{{/if}}
+      <div class="resume-ats">
+        <header>
+          <h1>{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:11pt; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:6px; color:#475569;">{{contact.title}}</div>{{/if}}
+          <div class="contact-info">
+            {{#if contact.phone}}<span>&#9990; {{contact.phone}}</span>{{/if}}
+            {{#if contact.email}}<span>&#9993; {{contact.email}}</span>{{/if}}
+            {{#if contact.linkedin}}<span>&#128279; {{contact.linkedin}}</span>{{/if}}
+            {{#if contact.github}}<span>&#128279; {{contact.github}}</span>{{/if}}
+            {{#if contact.location}}<span>&#128205; {{contact.location}}</span>{{/if}}
           </div>
         </header>
-        {{#if summary}}<section class="sec"><h2>Summary</h2><p>{{nl2br summary}}</p></section>{{/if}}
-        {{#if experience.length}}<section class="sec"><h2>Experience</h2>{{#each experience}}<div class="item"><h3>{{title}} | {{company}}</h3><div class="date">{{startDate}} - {{endDate}}</div><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-        {{#if education.length}}<section class="sec"><h2>Education</h2>{{#each education}}<div class="item"><h3>{{degree}}</h3><div class="date">{{endDate}}</div><p>{{institution}}</p></div>{{/each}}</section>{{/if}}
-        {{#if projects.length}}<section class="sec"><h2>Projects</h2>{{#each projects}}<div class="item"><h3>{{name}}</h3><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-        {{#if certifications.length}}<section class="sec"><h2>Certifications</h2>{{#each certifications}}<div class="item"><h3>{{name}}</h3><div class="date">{{date}}</div><p>{{issuer}}</p></div>{{/each}}</section>{{/if}}
-        {{#if skills.length}}<section class="sec"><h2>Skills</h2><p><strong>Expertise:</strong> {{join skills ", "}}</p></section>{{/if}}
-        {{#if additional.length}}<section class="sec"><h2>Additional Information</h2>{{#each additional}}<p><strong>{{title}}:</strong> {{value}}</p>{{/each}}</section>{{/if}}
-        {{#if languages.length}}<section class="sec"><h2>Languages</h2><p>{{#each languages}}<strong>{{name}}</strong> ({{level}}){{#unless @last}}, {{/unless}}{{/each}}</p></section>{{/if}}
-        {{#if references.length}}<section class="sec"><h2>References</h2>{{#each references}}<div class="item"><strong>{{name}}</strong> - {{title}} ({{contact}})</div>{{/each}}</section>{{/if}}
+
+        {{#if summary}}
+        <section>
+          <h2>Professional Summary</h2>
+          <div class="summary-text">{{summary}}</div>
+        </section>
+        {{/if}}
+
+        {{#if education.length}}
+        <section>
+          <h2>Education</h2>
+          {{#each education}}
+          <div class="item">
+            <div class="item-row">
+              <span class="bold">{{institution}}</span>
+              <span class="right">{{location}}</span>
+            </div>
+            <div class="item-row">
+              <span class="italic">{{degree}}</span>
+              <span class="italic right">{{startDate}}{{#if startDate}} - {{/if}}{{endDate}}</span>
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+
+        {{#if skills.length}}
+        <section>
+          <h2>Technical Skills</h2>
+          <div class="skills-block">
+            <span class="bold">Skills:</span> {{join skills ", "}}
+          </div>
+        </section>
+        {{/if}}
+
+        {{#if experience.length}}
+        <section>
+          <h2>Work Experience</h2>
+          {{#each experience}}
+          <div class="item">
+            <div class="item-row">
+              <span class="bold">{{title}}</span>
+              <span class="right bold">{{startDate}}{{#if startDate}} - {{/if}}{{endDate}}</span>
+            </div>
+            <div class="item-row">
+              <span class="italic">{{company}}</span>
+              <span class="italic right">{{location}}</span>
+            </div>
+            <div class="bullet-points">
+              {{nl2li description}}
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+
+        {{#if projects.length}}
+        <section>
+          <h2>Projects</h2>
+          {{#each projects}}
+          <div class="item">
+            <div class="item-row">
+              <span class="bold">{{name}}</span>
+              <span class="italic right">{{link}}</span>
+            </div>
+            <div class="bullet-points">
+              {{nl2li description}}
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+
+        {{#if certifications.length}}
+        <section>
+          <h2>Certifications</h2>
+          {{#each certifications}}
+          <div class="item">
+            <div class="item-row">
+              <span class="bold">{{name}}</span>
+              <span class="right">{{date}}</span>
+            </div>
+            <div class="item-row">
+              <span class="italic">{{issuer}}</span>
+            </div>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+
+        {{#if additional.length}}
+        <section>
+          <h2>Additional Information</h2>
+          {{#each additional}}
+          <div class="item-row">
+            <span class="bold">{{title}}:</span> <span>{{value}}</span>
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
+        
+        {{#if languages.length}}
+        <section>
+          <h2>Languages</h2>
+          <div class="skills-block">
+            {{#each languages}}<strong>{{name}}</strong> ({{level}}){{#unless @last}}, {{/unless}}{{/each}}
+          </div>
+        </section>
+        {{/if}}
+
+        {{#if references.length}}
+        <section>
+          <h2>References</h2>
+          {{#each references}}
+          <div class="item-row">
+            <span class="bold">{{name}}</span> - {{title}} ({{contact}})
+          </div>
+          {{/each}}
+        </section>
+        {{/if}}
       </div>
     `,
     css_content: `
       :root {
         --primary: {{#if design.primaryColor}}{{design.primaryColor}}{{else}}#000000{{/if}};
-        --font-family: {{#if design.fontFamily}}{{{design.fontFamily}}}{{else}}'Merriweather', serif{{/if}};
+        --font-family: {{#if design.fontFamily}}{{{design.fontFamily}}}{{else}}'Times New Roman', Times, serif{{/if}};
       }
-      body { font-family: var(--font-family); color: #000; line-height: 1.3; }
-      h2 { font-size: 12pt; text-transform: uppercase; border-bottom: 1px solid #000; margin-top: 12px; margin-bottom: 5px; font-weight: bold; }
+      body { font-family: var(--font-family); color: #000; line-height: 1.15; }
+      .resume-ats { padding: 0; }
+      header { text-align: center; margin-bottom: 12px; }
+      h1 { font-size: 20pt; font-weight: normal; margin: 0 0 4px 0; color: var(--primary); }
+      .contact-info { font-size: 9.5pt; display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+      .contact-info span { display: inline-flex; align-items: center; gap: 4px; }
+      section { margin-bottom: 12px; }
+      h2 { font-size: 11pt; text-transform: uppercase; border-bottom: 1px solid #000; margin-top: 0; margin-bottom: 4px; font-weight: bold; color: var(--primary); }
       .item { margin-bottom: 8px; }
-      .item h3 { font-size: 11pt; margin: 0; font-weight: bold; }
-      .date { font-style: italic; font-size: 9.5pt; margin-bottom: 2px; }
-      p { font-size: 10pt; margin: 0; }
+      .item-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 10pt; }
+      .bold { font-weight: bold; }
+      .italic { font-style: italic; }
+      .right { text-align: right; }
+      .bullet-points { margin-top: 2px; }
+      .bullet-points ul { margin: 0; padding-left: 20px; font-size: 9.5pt; }
+      .bullet-points li { margin-bottom: 2px; line-height: 1.25; }
+      .skills-block { font-size: 10pt; line-height: 1.4; }
+      .summary-text { font-size: 10pt; line-height: 1.3; }
     `
   },
   {
@@ -107,7 +233,8 @@ const templates = [
     html_content: `
       <div style="display:flex; min-height:297mm;">
         <aside style="width:35%; background:#f0fdf4; padding:30px; border-right:1px solid #dcfce7;">
-          <h1 style="font-size:22pt; color:#166534; line-height:1.1; margin-bottom:20px;">{{contact.name}}</h1>
+          <h1 style="font-size:22pt; color:#166534; line-height:1.1; margin-bottom:5px;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:11pt; color:#15803d; font-weight:600; margin-bottom:20px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
           <div style="margin-bottom:30px;">
             <h2 style="font-size:11pt; color:#166534; text-transform:uppercase; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">Contact</h2>
             <p style="font-size:9pt; margin:5px 0;">{{contact.email}}</p>
@@ -166,7 +293,8 @@ const templates = [
     html_content: `
       <div class="resume-dark">
         <header style="background:#0f172a; color:#fff; padding:30px; margin: calc(var(--margin-top) * -1) calc(var(--margin-right) * -1) 20px calc(var(--margin-left) * -1);">
-          <h1 style="font-size:28pt; margin:0; text-align:center;">{{contact.name}}</h1>
+          <h1 style="font-size:28pt; margin:0; text-align:center; text-transform:uppercase;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:12pt; text-align:center; margin-top:6px; color:#38bdf8; font-weight:600; text-transform:uppercase; letter-spacing:1px;">{{contact.title}}</div>{{/if}}
           <div style="opacity:0.8; font-size:9.5pt; margin-top:8px; text-align:center;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LI: {{contact.linkedin}}{{/if}}
@@ -214,6 +342,7 @@ const templates = [
       <div style="max-width:800px; margin:0 auto; padding:40px;">
         <header style="margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
           <h1 style="font-size:24pt; font-weight:300; letter-spacing:-0.5px; margin:0;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:11pt; color:#6366f1; font-weight:500; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
           <div style="font-size:9.5pt; color:#64748b; margin-top:4px;">
             {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
             {{#if contact.linkedin}} &bull; LinkedIn: {{contact.linkedin}}{{/if}}
@@ -255,7 +384,7 @@ const templates = [
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
           <div>
             <h1 style="font-size:26pt; color:#1e293b; margin:0;">{{contact.name}}</h1>
-            <p style="color:#4f46e5; font-weight:600; font-size:10.5pt; margin:2px 0;">Professional Software Engineer</p>
+            <p style="color:#4f46e5; font-weight:600; font-size:10.5pt; margin:2px 0;">{{#if contact.title}}{{contact.title}}{{else}}Software Engineer{{/if}}</p>
           </div>
           <div style="text-align:right; font-size:9pt; color:#64748b;">
             <div>{{contact.email}}</div>
@@ -305,6 +434,7 @@ const templates = [
       <div style="line-height:1.3;">
         <header style="text-align:center; margin-bottom:15px;">
           <h1 style="font-size:18pt; margin:0; text-transform:uppercase;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:10pt; font-weight:600; margin-top:2px; text-transform:uppercase; color:#475569;">{{contact.title}}</div>{{/if}}
           <p style="font-size:10pt; margin:5px 0;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LI: {{contact.linkedin}}{{/if}}
@@ -344,6 +474,7 @@ const templates = [
       <div style="color:#2d3748;">
         <header style="border-bottom:3px solid #2d3748; padding-bottom:10px; margin-bottom:20px;">
           <h1 style="font-size:26pt; margin:0; font-family:'Playfair Display', serif;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:11pt; color:#4a5568; font-style:italic; margin-top:4px; font-family:'Playfair Display', serif;">{{contact.title}}</div>{{/if}}
           <p style="font-size:10pt; margin-top:5px; color:#4a5568;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LinkedIn: {{contact.linkedin}}{{/if}}
@@ -384,6 +515,7 @@ const templates = [
       <div style="border-left:12px solid #1e293b; padding:40px; min-height:297mm;">
         <header style="margin-bottom:30px;">
           <h1 style="font-size:32pt; font-weight:800; color:#1e293b; margin:0; text-transform:uppercase; letter-spacing:-1px;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:11pt; color:#6366f1; font-weight:700; margin-top:4px; text-transform:uppercase; letter-spacing:1px;">{{contact.title}}</div>{{/if}}
           <p style="font-size:10pt; color:#64748b; margin-top:5px; font-weight:500;">
             {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
             {{#if contact.linkedin}} &bull; LI: {{contact.linkedin}}{{/if}}
@@ -394,6 +526,8 @@ const templates = [
         {{#if experience.length}}<section style="margin-bottom:25px;"><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Professional History</h2>{{#each experience}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{title}}</strong><span style="font-size:9pt; color:#94a3b8;">{{startDate}} - {{endDate}}</span></div><div style="color:#6366f1; font-weight:600; font-size:9.5pt;">{{company}}</div><p style="font-size:10pt; color:#475569; margin-top:5px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if education.length}}<section style="margin-bottom:25px;"><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Education</h2>{{#each education}}<div><strong>{{degree}}</strong><br><span style="color:#64748b; font-size:9.5pt;">{{institution}} | Graduated {{endDate}}</span></div>{{/each}}</section>{{/if}}
         {{#if skills.length}}<section style="margin-bottom:25px;"><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Core Expertise</h2><div style="display:flex; flex-wrap:wrap; gap:8px;">{{#each skills}}<span style="background:#f8fafc; border:1px solid #e2e8f0; padding:4px 12px; border-radius:4px; font-size:9pt;">{{this}}</span>{{/each}}</div></section>{{/if}}
+        {{#if projects.length}}<section style="margin-bottom:25px;"><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Projects</h2>{{#each projects}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong>{{#if link}}<a href="{{link}}" style="font-size:9pt; color:#6366f1; text-decoration:none;">{{link}}</a>{{/if}}</div><p style="font-size:10pt; color:#475569; margin-top:5px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
+        {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong><span style="font-size:9pt; color:#94a3b8;">{{date}}</span></div><div style="color:#64748b; font-size:9.5pt;">{{issuer}}</div></div>{{/each}}</section>{{/if}}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
           {{#if languages.length}}<section><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Languages</h2>{{#each languages}}<div><strong>{{name}}</strong>: {{level}}</div>{{/each}}</section>{{/if}}
           {{#if references.length}}<section><h2 style="font-size:11pt; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">References</h2>{{#each references}}<div style="margin-bottom:8px; font-size:9.5pt;"><strong>{{name}}</strong> &bull; {{contact}}</div>{{/each}}</section>{{/if}}

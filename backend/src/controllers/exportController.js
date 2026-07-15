@@ -1,5 +1,5 @@
 const { getDb } = require('../config/database');
-const { generatePreviewHtml } = require('../services/pdfService');
+const { generatePreviewHtml } = require('../services/previewService');
 const logger = require('../config/logger');
 
 /**

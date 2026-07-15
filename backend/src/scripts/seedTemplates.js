@@ -156,8 +156,9 @@ const templates = [
     tags: JSON.stringify(['classic', 'serif']),
     html_content: `
       <div class="resume-container-classic">
-        <header style="text-align:center; border-bottom:2px solid #000; padding-bottom:15px; margin-bottom:20px;">
-          <h1 style="font-size:2.4em; text-transform:uppercase; letter-spacing:2px;">{{contact.name}}</h1>
+        <header style="text-align:center; padding-bottom:5px; margin-bottom:20px;">
+          <h1 style="font-size:2.4em; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.15em; text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:8px; color:#475569;">{{contact.title}}</div>{{/if}}
           <div style="font-size:1em;">
             {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
             {{#if contact.linkedin}} &bull; LI: {{contact.linkedin}}{{/if}}
@@ -201,7 +202,8 @@ const templates = [
     html_content: `
       <div style="display:flex; min-height:100%;">
         <aside style="width:35%; background:#f0fdf4; padding:30px; border-right:1px solid #bbf7d0;">
-          <h1 style="font-size:2.2em; color:#166534; line-height:1.1; margin-bottom:20px;">{{contact.name}}</h1>
+          <h1 style="font-size:2.2em; color:#166534; line-height:1.1; margin-bottom:5px;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.15em; color:#15803d; font-weight:600; margin-bottom:20px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
           <div style="margin-bottom:30px;">
             <h2 style="font-size:1.1em; color:#166534; text-transform:uppercase; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">Contact</h2>
             <p style="font-size:0.9em; margin:5px 0;">{{contact.email}}</p>
@@ -260,7 +262,8 @@ const templates = [
     html_content: `
       <div class="resume-dark">
         <header class="bleed-header" style="background:#0f172a; color:#fff; padding:30px; margin-bottom: 20px;">
-          <h1 style="font-size:2.8em; margin:0; text-align:center;">{{contact.name}}</h1>
+          <h1 style="font-size:2.8em; margin:0; text-align:center; text-transform:uppercase;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.2em; text-align:center; margin-top:6px; color:#38bdf8; font-weight:600; text-transform:uppercase; letter-spacing:1px;">{{contact.title}}</div>{{/if}}
           <div style="opacity:0.8; font-size:0.95em; margin-top:8px; text-align:center;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LI: {{contact.linkedin}}{{/if}}
@@ -308,6 +311,7 @@ const templates = [
       <div style="max-width:800px; margin:0 auto; padding:40px;">
         <header style="margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
           <h1 style="font-size:2.4em; font-weight:300; letter-spacing:-0.5px; margin:0;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.15em; color:#6366f1; font-weight:500; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
           <div style="font-size:0.95em; color:#64748b; margin-top:4px;">
             {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
             {{#if contact.linkedin}} &bull; LinkedIn: {{contact.linkedin}}{{/if}}
@@ -349,7 +353,7 @@ const templates = [
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
           <div>
             <h1 style="font-size:2.6em; color:#1e293b; margin:0;">{{contact.name}}</h1>
-            <p style="color:#4f46e5; font-weight:600; font-size:1.05em; margin:2px 0;">Professional Software Engineer</p>
+            <p style="color:#4f46e5; font-weight:600; font-size:1.05em; margin:2px 0;">{{#if contact.title}}{{contact.title}}{{else}}Software Engineer{{/if}}</p>
           </div>
           <div style="text-align:right; font-size:0.9em; color:#64748b;">
             <div>{{contact.email}}</div>
@@ -399,6 +403,7 @@ const templates = [
       <div style="line-height: var(--line-height, 1.3);">
         <header style="text-align:center; margin-bottom:15px;">
           <h1 style="font-size:1.8em; margin:0; text-transform:uppercase;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.05em; font-weight:600; margin-top:2px; text-transform:uppercase; color:#475569;">{{contact.title}}</div>{{/if}}
           <p style="font-size:1em; margin:5px 0;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LI: {{contact.linkedin}}{{/if}}
@@ -438,6 +443,7 @@ const templates = [
       <div style="color:#2d3748;">
         <header style="border-bottom:3px solid #2d3748; padding-bottom:10px; margin-bottom:20px;">
           <h1 style="font-size:2.6em; margin:0; font-family:'Playfair Display', serif;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.15em; color:#4a5568; font-style:italic; margin-top:4px; font-family:'Playfair Display', serif;">{{contact.title}}</div>{{/if}}
           <p style="font-size:1em; margin-top:5px; color:#4a5568;">
             {{contact.email}} | {{contact.phone}} | {{contact.location}}
             {{#if contact.linkedin}} | LinkedIn: {{contact.linkedin}}{{/if}}
@@ -478,6 +484,7 @@ const templates = [
       <div style="border-left:12px solid #1e293b; padding:40px; min-height:100%;">
         <header style="margin-bottom:30px;">
           <h1 style="font-size:3.2em; font-weight:800; color:#1e293b; margin:0; text-transform:uppercase; letter-spacing:-1px;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.2em; color:#6366f1; font-weight:700; margin-top:4px; text-transform:uppercase; letter-spacing:1px;">{{contact.title}}</div>{{/if}}
           <p style="font-size:1em; color:#64748b; margin-top:5px; font-weight:500;">
             {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
             {{#if contact.linkedin}} &bull; LI: {{contact.linkedin}}{{/if}}
@@ -488,6 +495,8 @@ const templates = [
         {{#if experience.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Professional History</h2>{{#each experience}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{title}}</strong><span style="font-size:0.9em; color:#94a3b8;">{{startDate}} - {{endDate}}</span></div><div style="color:#6366f1; font-weight:600; font-size:0.95em;">{{company}}</div><p style="font-size:1em; color:#475569; margin-top:5px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if education.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Education</h2>{{#each education}}<div><strong>{{degree}}</strong><br><span style="color:#64748b; font-size:0.95em;">{{institution}} | Graduated {{endDate}}</span></div>{{/each}}</section>{{/if}}
         {{#if skills.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Core Expertise</h2><div style="display:flex; flex-wrap:wrap; gap:8px;">{{#each skills}}<span style="background:#f8fafc; border:1px solid #e2e8f0; padding:4px 12px; border-radius:4px; font-size:0.9em;">{{this}}</span>{{/each}}</div></section>{{/if}}
+        {{#if projects.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Projects</h2>{{#each projects}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong>{{#if link}}<a href="{{link}}" style="font-size:0.9em; color:#6366f1; text-decoration:none;">{{link}}</a>{{/if}}</div><p style="font-size:1em; color:#475569; margin-top:5px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
+        {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong><span style="font-size:0.9em; color:#94a3b8;">{{date}}</span></div><div style="color:#64748b; font-size:0.95em;">{{issuer}}</div></div>{{/each}}</section>{{/if}}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
           {{#if languages.length}}<section><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">Languages</h2>{{#each languages}}<div><strong>{{name}}</strong>: {{level}}</div>{{/each}}</section>{{/if}}
           {{#if references.length}}<section><h2 style="font-size:1.1em; color:#1e293b; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;">References</h2>{{#each references}}<div style="margin-bottom:8px; font-size:0.95em;"><strong>{{name}}</strong> &bull; {{contact}}</div>{{/each}}</section>{{/if}}

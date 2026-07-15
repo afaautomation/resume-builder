@@ -86,8 +86,16 @@ const authLimiter = rateLimit({
 // ─── Static files ─────────────────────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Serve Frontend Static Files
-app.use(express.static(path.join(__dirname, '../../frontend')));
+// Serve Frontend Static Files — disable caching for JS/CSS so edits show immediately
+app.use(express.static(path.join(__dirname, '../../frontend'), {
+  setHeaders(res, filePath) {
+    if (/\.(js|css|html)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // ─── Public Routes ────────────────────────────────────────────────────────────
 // Welcome route
@@ -138,8 +146,8 @@ app.get('/api', (_req, res) => {
       auth:      '/api/auth      — register · login · refresh · me',
       resumes:   '/api/resumes   — CRUD · ATS · design · order · versions · duplicate',
       templates: '/api/templates — list · categories · single',
-      import:    '/api/import    — upload PDF/DOCX/image · jobs',
-      export:    '/api/export    — PDF download · HTML preview · history',
+      import:    '/api/import    — upload DOCX/image · jobs',
+      export:    '/api/export    — Word download · HTML preview · history',
       tips:      '/api/tips      — section tips · random tip',
     },
   });

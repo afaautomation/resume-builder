@@ -917,11 +917,15 @@ function updatePreview() {
     })
         .then(r => r.text())
         .then(html => {
-            // Use srcdoc instead of document.write to prevent browser blocking/flashing
+            // Remove previous load listener and set new srcdoc
+            const onLoad = () => {
+                // Wait for in-iframe pagination script to complete
+                setTimeout(() => resizeIframeToContent(iframe), 500);
+            };
+            iframe.removeEventListener('load', iframe._previewLoadHandler);
+            iframe._previewLoadHandler = onLoad;
+            iframe.addEventListener('load', onLoad, { once: true });
             iframe.srcdoc = html;
-            setTimeout(() => {
-                autoFitMobilePreview();
-            }, 100);
         })
         .catch(err => {
             if (err.name === 'AbortError') return;
@@ -932,24 +936,43 @@ function updatePreview() {
 // --- Mobile Zoom & Fit Handlers ---
 let modalZoomMode = '100'; // '100' or 'fit'
 
+function resizeIframeToContent(iframe) {
+    const container = document.querySelector('.preview-frame-container');
+    try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        if (iframeDoc && iframeDoc.body) {
+            const h = Math.max(
+                iframeDoc.documentElement.scrollHeight,
+                iframeDoc.body.scrollHeight,
+                1200
+            );
+            iframe.style.height = h + 'px';
+            if (container) {
+                container.style.minHeight = h + 'px';
+                container.style.height = h + 'px';
+            }
+        }
+    } catch (e) {
+        iframe.style.height = '1200px';
+        if (container) container.style.height = '1200px';
+    }
+}
+
 function autoFitMobilePreview() {
     const iframe = document.getElementById('resume-preview-iframe');
     const container = document.querySelector('.preview-frame-container');
     
     if (window.innerWidth > 992) {
-        // Desktop: Reset inline styles
+        // Desktop: Reset transforms and resize iframe to full content height
         if (iframe) {
             iframe.style.transform = '';
             iframe.style.width = '100%';
-            iframe.style.height = '100%';
             iframe.style.position = '';
             iframe.style.top = '';
             iframe.style.left = '';
             iframe.style.marginLeft = '';
             iframe.style.transformOrigin = '';
-        }
-        if (container) {
-            container.style.height = '100%';
+            resizeIframeToContent(iframe);
         }
         return;
     }
@@ -978,10 +1001,23 @@ function autoFitMobilePreview() {
 function updateModalZoom() {
     const wrapper = document.getElementById('modal-iframe-wrapper');
     const container = document.querySelector('#zoom-check-modal .modal-body');
-    if (!wrapper || !container) return;
+    const iframe = document.getElementById('modal-preview-iframe');
+    if (!wrapper || !container || !iframe) return;
+
+    let actualHeight = 1130;
+    try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        if (iframeDoc) {
+            actualHeight = iframeDoc.documentElement.scrollHeight || iframeDoc.body.scrollHeight || 1130;
+        }
+    } catch (e) {
+        console.error('Error measuring modal iframe height:', e);
+    }
+
+    iframe.style.height = `${actualHeight}px`;
 
     const baseWidth = 800;
-    const baseHeight = 1130;
+    const baseHeight = actualHeight;
 
     if (modalZoomMode === 'fit') {
         const padding = 32;
@@ -1052,7 +1088,8 @@ function setupMobileZoom() {
     if (mainIframe) {
         mainIframe.addEventListener('load', () => {
             if (state.activeView === 'editor') {
-                autoFitMobilePreview();
+                // Delay to allow in-iframe pagination script to run first
+                setTimeout(autoFitMobilePreview, 500);
             }
         });
     }
@@ -1096,7 +1133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Editor Actions — save to DB right before PDF generation
+    // Editor Actions — download PDF
     document.getElementById('download-pdf-btn').onclick = async () => {
         generateClientPdf();
     };
@@ -1178,16 +1215,16 @@ async function generateClientPdf() {
 
     const btn = document.getElementById('download-pdf-btn');
     const mobileBtn = document.getElementById('mobile-bottom-download-btn');
-    const originalText = btn.innerHTML;
+    const originalText = btn ? btn.innerHTML : '';
     const originalMobileText = mobileBtn ? mobileBtn.innerHTML : '';
 
-    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating PDF...';
+    if (btn) btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating PDF...';
     if (mobileBtn) mobileBtn.innerHTML = '<i data-lucide="loader" class="spin"></i> Generating...';
     lucide.createIcons();
 
     let printFrame = null;
     try {
-        // Fetch the full rendered HTML from the backend
+        // ── Step 1: Fetch rendered HTML from backend ───────────────────────────
         const htmlText = await fetch(`${API_BASE}/export/preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1198,23 +1235,16 @@ async function generateClientPdf() {
             })
         }).then(r => r.text());
 
-        // Create a hidden iframe — width must be exactly 794px (A4 @ 96dpi)
-        // Keep it in viewport but transparent to avoid html2canvas offset and visibility bugs
+        // ── Step 2: Render into a hidden iframe at exact A4 width ─────────────
         printFrame = document.createElement('iframe');
         printFrame.style.cssText = [
-            'position:fixed',
-            'left:0',
-            'top:0',
-            'width:794px',
-            'height:1123px',
-            'border:none',
-            'opacity:0.01',
-            'z-index:-9999',
-            'pointer-events:none'
+            'position:fixed', 'left:0', 'top:0',
+            'width:794px', 'height:1123px',
+            'border:none', 'opacity:0.01',
+            'z-index:-9999', 'pointer-events:none'
         ].join(';');
         document.body.appendChild(printFrame);
 
-        // Write HTML and wait for the load event
         await new Promise(resolve => {
             printFrame.onload = resolve;
             printFrame.contentDocument.open();
@@ -1222,73 +1252,125 @@ async function generateClientPdf() {
             printFrame.contentDocument.close();
         });
 
-        // Let fonts + images fully render inside the iframe
-        await new Promise(r => setTimeout(r, 1200));
+        // Wait for fonts to be fully loaded inside the iframe
+        if (printFrame.contentWindow && printFrame.contentWindow.document && printFrame.contentWindow.document.fonts) {
+            try {
+                await printFrame.contentWindow.document.fonts.ready;
+            } catch (e) {
+                console.warn('Iframe fonts loading failed or timed out:', e);
+            }
+        }
+
+        // Wait a short buffer for the paginator script to fully settle after fonts are loaded
+        await new Promise(r => setTimeout(r, 600));
 
         const iframeDoc = printFrame.contentDocument;
-        const iframeWin = printFrame.contentWindow;
 
-        // Make sure the body and html have no extra scroll offset
-        iframeDoc.documentElement.style.overflow = 'hidden';
-        iframeDoc.body.style.overflow = 'hidden';
-        iframeDoc.body.style.margin = '0';
+        // ── Step 3: Collect only pages that have actual content ────────────────
+        const previewContent = iframeDoc.getElementById('preview-content');
+        const allPageEls = previewContent
+            ? Array.from(previewContent.querySelectorAll('.page'))
+            : [];
 
-        const element = iframeDoc.getElementById('pdf-content');
-        if (!element) throw new Error('pdf-content element not found in rendered HTML');
+        // Filter out pages with zero visible content (text OR media)
+        const contentPages = allPageEls.filter(page => {
+            const text = page.textContent.replace(/\s+/g, '').trim();
+            const hasMedia = page.querySelector('img, svg, canvas, video');
+            return !!(text || hasMedia);
+        });
 
-        // Lock dimensions so html2canvas measures correctly
-        element.style.cssText += ';width:794px !important;max-width:794px !important;margin:0 !important;';
+        if (contentPages.length === 0) {
+            throw new Error('No resume content found to export.');
+        }
 
-        const opt = {
-            margin: 0,
-            filename: `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
+        // ── Step 4: Prepare each page element for clean capture ───────────────
+        const A4_PX = 1123;
+        const A4_W  = 794;
+
+        // Strip preview-only chrome from the wrapper
+        if (previewContent) {
+            previewContent.style.cssText =
+                'display:block!important;width:794px!important;padding:0!important;' +
+                'gap:0!important;background:#fff!important;margin:0!important;';
+        }
+        iframeDoc.body.style.cssText =
+            'margin:0!important;padding:0!important;background:#fff!important;' +
+            'overflow:hidden!important;display:block!important;';
+
+        contentPages.forEach(pg => {
+            pg.style.cssText =
+                `display:block!important;width:${A4_W}px!important;` +
+                `height:${A4_PX}px!important;overflow:hidden!important;` +
+                'margin:0!important;box-shadow:none!important;' +
+                'border-radius:0!important;background:#fff!important;';
+        });
+
+        // ── Step 5: Capture each page with html2canvas, stitch into one PDF ───
+        // Direct jsPDF + html2canvas — no html2pdf wrapper, so zero blank pages.
+        const jsPDFLib = window.jspdf && window.jspdf.jsPDF ? window.jspdf.jsPDF : window.jsPDF;
+        if (!jsPDFLib) throw new Error('jsPDF library not loaded.');
+        if (typeof html2canvas === 'undefined') throw new Error('html2canvas library not loaded.');
+
+        const pdf = new jsPDFLib({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+        const A4_MM_W = 210;
+        const A4_MM_H = 297;
+
+        // Collect iframe styles once to inject into each canvas clone
+        const iframeStyles = Array.from(iframeDoc.head.querySelectorAll('style,link'))
+            .map(el => el.outerHTML).join('\n');
+
+        for (let i = 0; i < contentPages.length; i++) {
+            const pg = contentPages[i];
+
+            const canvas = await html2canvas(pg, {
                 scale: 2,
                 useCORS: true,
                 allowTaint: false,
                 letterRendering: true,
-                window: iframeWin, // Render within iframe context to preserve styles, fonts, and borders
                 scrollX: 0,
                 scrollY: 0,
-                windowWidth: 794,
-                windowHeight: 1123,
-                width: 794,
-                height: element.scrollHeight || 1123,
-                x: 0,
-                y: 0,
+                windowWidth:  A4_W,
+                windowHeight: A4_PX,
+                width:  A4_W,
+                height: A4_PX,
+                x: 0, y: 0,
                 logging: false,
-                foreignObjectRendering: false,
                 imageTimeout: 15000,
+                backgroundColor: '#ffffff',
                 onclone: (clonedDoc) => {
-                    // Copy stylesheets and fonts from iframeDoc to clonedDoc so margins, padding, and fonts are preserved
-                    const iframeHead = iframeDoc.head;
-                    const targetContainer = clonedDoc.head || clonedDoc.body || clonedDoc.documentElement;
-                    if (iframeHead && targetContainer) {
-                        Array.from(iframeHead.querySelectorAll('style, link')).forEach(styleEl => {
-                            targetContainer.appendChild(styleEl.cloneNode(true));
-                        });
-                    }
-
-                    // Ensure cloned doc also has no scroll offsets
-                    const clonedEl = clonedDoc.getElementById('pdf-content');
-                    if (clonedEl) {
-                        clonedEl.style.cssText += ';width:794px !important;max-width:794px !important;margin:0 !important;';
+                    // Inject iframe styles so fonts/colours render correctly
+                    clonedDoc.head.insertAdjacentHTML('beforeend', iframeStyles);
+                    clonedDoc.body.style.cssText =
+                        'background:#fff;margin:0;padding:0;display:block;overflow:hidden;';
+                    // Style the cloned page element itself
+                    const clonedPg = clonedDoc.querySelector('.page');
+                    if (clonedPg) {
+                        clonedPg.style.cssText =
+                            `display:block!important;width:${A4_W}px!important;` +
+                            `height:${A4_PX}px!important;overflow:hidden!important;` +
+                            'margin:0!important;box-shadow:none!important;' +
+                            'border-radius:0!important;background:#fff!important;';
                     }
                 }
-            },
-            jsPDF: {
-                unit: 'mm',
-                format: 'a4',
-                orientation: 'portrait',
-                compress: true
-            }
-        };
-        const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-        const url = window.URL.createObjectURL(pdfBlob);
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+            // Each content page → exactly one PDF page, no gaps
+            if (i > 0) pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, 0, A4_MM_W, A4_MM_H, '', 'FAST');
+        }
+
+        console.log('Generating PDF with filename:', `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`);
+        const filename = `${document.getElementById('resume-title-input').value || 'Resume'}.pdf`;
+        
+        // Generate blob and trigger standard download to ensure extension and name are set correctly
+        const blob = pdf.output('blob');
+        console.log('PDF blob created, size bytes:', blob.size);
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = opt.filename;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1298,27 +1380,14 @@ async function generateClientPdf() {
 
     } catch (err) {
         console.error('PDF Generation Error:', err);
+        showToast('Failed to generate PDF. See console for details.', 'error');
         showToast('Failed to generate PDF. Please try again.', 'error');
     } finally {
-        if (printFrame && printFrame.parentNode) {
-            document.body.removeChild(printFrame);
-        }
-        btn.innerHTML = originalText;
+        if (printFrame && printFrame.parentNode) document.body.removeChild(printFrame);
+        if (btn) btn.innerHTML = originalText;
         if (mobileBtn) mobileBtn.innerHTML = originalMobileText;
         lucide.createIcons();
     }
-
-    // Background save to sync DB
-    try {
-        await apiFetch(`/resumes/${state.currentResume.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-                content: state.currentResume.content,
-                design: state.currentResume.design,
-                title: document.getElementById('resume-title-input').value
-            })
-        });
-    } catch (e) { }
 }
 
 async function updateDesignSetting(key, value) {
