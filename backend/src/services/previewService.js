@@ -283,32 +283,34 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
       const A4_W = 794;
 
       // ── 2. Measure true content height ───────────────────────────────────────
-      // Force the page to have no overflow/height limit so scrollHeight is accurate
       originalPage.style.height = 'auto';
       originalPage.style.overflow = 'visible';
       pageInner.style.height = 'auto';
       pageInner.style.overflow = 'visible';
 
-      // Use the direct child of page-inner (the template root element)
       const templateRoot = pageInner.firstElementChild;
       const totalH = templateRoot
         ? templateRoot.offsetHeight || templateRoot.scrollHeight
         : pageInner.scrollHeight;
 
-      // Remove top/bottom padding from page-inner so slices align cleanly
+      // Save top/bottom padding from page-inner
       const computedStyles = window.getComputedStyle(pageInner);
       const savedPaddingTop = computedStyles.paddingTop;
       const savedPaddingBottom = computedStyles.paddingBottom;
+      const padTop = parseFloat(savedPaddingTop) || 0;
+      const padBot = parseFloat(savedPaddingBottom) || 0;
+
+      // Remove top/bottom padding during measurement so element bounding rects
+      // are relative to the content area top (not shifted by padding).
       pageInner.style.setProperty('padding-top', '0px', 'important');
       pageInner.style.setProperty('padding-bottom', '0px', 'important');
 
-      const MARGIN     = 0;           // no breathing room — slice fills the full page height
-      const SLICE_H    = A4_H - (2 * MARGIN);
+      // USABLE_H = the pixel height of one A4 page minus top & bottom margin
+      const USABLE_H = A4_H - padTop - padBot;
 
-      // Find atomic layout elements (leaves of the DOM tree that contain text or media)
-      const allElements = Array.from(pageInner.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, tr, td, th, .skill-item, img, svg, div, span, strong'));
+      // Find atomic layout elements (leaves of the DOM tree)
+      const allElements = Array.from(pageInner.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, tr, td, th, .skill-item, .skill-tag, img, svg, div, span, strong'));
       const elements = allElements.filter(el => {
-        // If it's a wrapper containing other block elements, let the pagination break inside its children.
         const hasBlockChildren = el.querySelector('p, div, section, ul, ol, h1, h2, h3, h4, h5, h6, tr, table');
         return !hasBlockChildren;
       });
@@ -321,140 +323,141 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
         const top = (r.top - pageInnerRect.top) / scale;
         const bottom = (r.bottom - pageInnerRect.top) / scale;
         const height = r.height / scale;
-        return {
-          top,
-          bottom,
-          height,
-          el: el
-        };
+        return { top, bottom, height, el };
       });
 
-      // Calculate break offsets
-      const padTop = parseFloat(savedPaddingTop) || 0;
-      const padBot = parseFloat(savedPaddingBottom) || 0;
-      const USABLE_H = SLICE_H - padTop - padBot;
-
+      // ── 3. Calculate page break offsets (in content-coordinate space) ─────────
+      // All offsets are in the "no-padding" coordinate space of pageInner.
       const offsets = [0];
       let currentOffset = 0;
 
-      while (currentOffset < totalH) {
+      while (currentOffset < totalH - 5) {
         let idealEnd = currentOffset + USABLE_H;
-        if (idealEnd >= totalH) {
-          break;
-        }
+        if (idealEnd >= totalH) break;
 
         let adjustedEnd = idealEnd;
-        let adjusted = true;
-        let loops = 0;
 
-        while (adjusted && loops < 50) {
-          adjusted = false;
-          loops++;
-          for (const item of relativeRects) {
-            // Check if adjustedEnd cuts through this atomic element (with a 2px tolerance)
-            if (adjustedEnd > item.top + 2 && adjustedEnd < item.bottom - 2) {
-              if (item.height <= USABLE_H && item.top > currentOffset) {
-                // Try going ONE level up to the parent for a cleaner item-level break.
-                // Atomic elements are things like <p> or <span> inside a project/experience item.
-                // Moving to the parent's top ensures we break BEFORE the whole item, not mid-paragraph.
-                let breakAt = item.top;
-                const parent = item.el.parentElement;
-                if (parent && parent !== pageInner) {
-                  const pr = parent.getBoundingClientRect();
-                  const pTop = (pr.top - pageInnerRect.top) / scale;
-                  if (pTop > currentOffset && pTop < breakAt) {
-                    breakAt = pTop;
-                  }
+        // Find elements that are sliced by idealEnd
+        const cutItems = relativeRects.filter(
+          item => item.top + 2 < idealEnd && item.bottom - 2 > idealEnd
+        );
+
+        if (cutItems.length > 0) {
+          let candidateBreaks = [];
+          for (const item of cutItems) {
+            if (item.height <= USABLE_H && item.top > currentOffset + 30) {
+              let breakAt = item.top;
+              // Try breaking before the parent wrapper for a cleaner split
+              const parent = item.el.parentElement;
+              if (parent && parent !== pageInner) {
+                const pr = parent.getBoundingClientRect();
+                const pTop = (pr.top - pageInnerRect.top) / scale;
+                if (pTop > currentOffset + 30 && pTop < breakAt && (idealEnd - pTop) < 300) {
+                  breakAt = pTop;
                 }
-                adjustedEnd = breakAt;
-                adjusted = true;
-                break; // Re-evaluate all elements with new boundary
               }
+              candidateBreaks.push(breakAt);
             }
+          }
+          if (candidateBreaks.length > 0) {
+            const minBreak = Math.min(...candidateBreaks);
+            if (minBreak > currentOffset + 30) adjustedEnd = minBreak;
           }
         }
 
-        // --- Heading Keep-With-Next Rule ---
-        // Prevent orphan headings at the bottom of the page
-        let headingAdjusted = true;
-        let headingLoops = 0;
-        while (headingAdjusted && headingLoops < 10) {
-          headingAdjusted = false;
-          headingLoops++;
-          for (const item of relativeRects) {
-            const isHeading = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(item.el.tagName);
-            if (isHeading && item.bottom <= adjustedEnd && (adjustedEnd - item.bottom) < 70) {
-              if (item.top > currentOffset) {
-                adjustedEnd = item.top;
-                headingAdjusted = true;
-                break;
-              }
-            }
+        // Heading keep-with-next: don't orphan a heading at the very bottom
+        for (const item of relativeRects) {
+          const isHeading = ['H1','H2','H3','H4','H5','H6'].includes(item.el.tagName)
+            || (item.el.classList && item.el.classList.contains('section-title'));
+          if (isHeading && item.bottom <= adjustedEnd && (adjustedEnd - item.bottom) < 60) {
+            if (item.top > currentOffset + 30) adjustedEnd = item.top;
           }
         }
 
-        // Fallback to avoid infinite loops or empty pages
-        if (adjustedEnd <= currentOffset) {
-          adjustedEnd = idealEnd;
-        }
+        // Safety: guarantee forward progress
+        if (adjustedEnd <= currentOffset + 30) adjustedEnd = idealEnd;
 
         offsets.push(adjustedEnd);
         currentOffset = adjustedEnd;
       }
 
+      // ── 4. Render Pages ──────────────────────────────────────────────────────
+      // Key coordinate model:
+      //
+      //  Page 1  clone: top=0, padding-top restored → content starts at padTop px
+      //                 The break point (offsets[1]) is in content-coordinates.
+      //                 In rendered coordinates the break sits at padTop + offsets[1].
+      //                 viewport height must be padTop + offsets[1] to show everything.
+      //
+      //  Page N  clone: top = -(offsets[i]) px, padding-top = 0
+      //                 Content for this page starts at content-coord offsets[i].
+      //                 After the shift, that maps to rendered coord 0 inside the clone.
+      //                 Viewport top = padTop (margin), height = rawVisibleH (content slice).
+      //                 The outer page div (overflow:hidden, height:A4_H) clips the rest.
+
       container.innerHTML = '';
 
       for (let i = 0; i < offsets.length; i++) {
-        const startY = offsets[i];
+        const startY    = offsets[i];
+        const isLastPage = (i + 1 >= offsets.length);
+        const endY       = isLastPage ? totalH : offsets[i + 1];
+        const rawVisibleH = Math.ceil(endY - startY);   // height of content slice in px
 
-        // --- Outer page shell ---
+        // ── Outer A4 page shell ──
         const pageDiv = document.createElement('div');
         pageDiv.className = 'page';
         pageDiv.style.width           = A4_W + 'px';
         pageDiv.style.height          = A4_H + 'px';
         pageDiv.style.position        = 'relative';
-        pageDiv.style.overflow        = 'hidden';
+        pageDiv.style.overflow        = 'hidden';   // ← this is the final clip boundary
         pageDiv.style.backgroundColor = '#ffffff';
         pageDiv.style.flexShrink      = '0';
 
-        // --- Viewport window (visible strip of this page) ---
-        // WHY we add padTop to visibleH:
-        //   When clones restore padding-top, ALL content inside the clone is pushed down
-        //   by padTop pixels. So the last padTop px of content on each page was being
-        //   clipped. Adding padTop to the viewport height corrects this.
-        // On the last page we also add padBot so the bottom margin is not cut off.
-        const isLastPage = (i + 1 >= offsets.length);
-        const endY = isLastPage ? totalH : offsets[i + 1];
-        const rawVisibleH = Math.ceil(endY - startY);
-        const adjustedVisibleH = Math.min(rawVisibleH + padTop + (isLastPage ? padBot : 0), SLICE_H);
-
-        // PAGE_TOP_GAP = padTop on pages 2+ so content starts exactly at the page margin
-        // (matching the padTop shift applied by the clone's restored padding).
-        const PAGE_TOP_GAP = i === 0 ? 0 : padTop;
-
+        // ── Viewport strip (clips to the content slice for this page) ──
         const viewport = document.createElement('div');
-        viewport.className        = 'page-viewport';
-        viewport.style.position   = 'absolute';
-        viewport.style.top        = PAGE_TOP_GAP + 'px';
-        viewport.style.left       = '0';
-        viewport.style.width      = '100%';
-        viewport.style.height     = (adjustedVisibleH - PAGE_TOP_GAP) + 'px';
-        viewport.style.overflow   = 'hidden';
+        viewport.className      = 'page-viewport';
+        viewport.style.position = 'absolute';
+        viewport.style.left     = '0';
+        viewport.style.width    = '100%';
+        viewport.style.overflow = 'hidden';
 
-        // --- Clone of page-inner, shifted up to show slice i ---
+        // ── Clone of page-inner with content shifted to show this slice ──
         const clone = document.createElement('div');
-        clone.innerHTML = pageInner.innerHTML;          // copy template content
+        clone.innerHTML = pageInner.innerHTML;
         clone.className = pageInner.className;
-        // Copy computed styles (padding etc.) from the original
         clone.setAttribute('style', pageInner.getAttribute('style') || '');
-        clone.style.position   = 'absolute';
-        clone.style.top        = '-' + startY + 'px';
-        clone.style.left       = '0';
-        clone.style.width      = '100%';
-        clone.style.height     = 'auto';
-        clone.style.overflow   = 'visible';
-        clone.style.setProperty('padding-top', savedPaddingTop, 'important');
-        clone.style.setProperty('padding-bottom', savedPaddingBottom, 'important');
+        clone.style.position = 'absolute';
+        clone.style.left     = '0';
+        clone.style.width    = '100%';
+        clone.style.height   = 'auto';
+        clone.style.overflow = 'visible';
+
+        if (i === 0) {
+          // Page 1:
+          //   • Clone starts at top:0 with padding restored.
+          //     Content area begins at padTop px inside the clone.
+          //   • Break point in rendered coords = padTop + rawVisibleH
+          //   • Viewport height = padTop + rawVisibleH (+ padBot if only page)
+          //     capped at A4_H so it never exceeds the page shell.
+          const vpH = Math.min(padTop + rawVisibleH + (isLastPage ? padBot : 0), A4_H);
+          viewport.style.top    = '0px';
+          viewport.style.height = vpH + 'px';
+          clone.style.top = '0px';
+          clone.style.setProperty('padding-top',    savedPaddingTop,    'important');
+          clone.style.setProperty('padding-bottom', savedPaddingBottom, 'important');
+        } else {
+          // Pages 2+:
+          //   • Clone is shifted up by startY so the right content lands at top:0.
+          //   • We add back padTop as the viewport's top offset (page margin).
+          //   • Viewport height = rawVisibleH (content slice) + padBot on last page,
+          //     capped at USABLE_H so nothing overflows the page shell below.
+          const vpH = Math.min(rawVisibleH + (isLastPage ? padBot : 0), USABLE_H);
+          viewport.style.top    = padTop + 'px';
+          viewport.style.height = vpH + 'px';
+          clone.style.top = '-' + startY + 'px';
+          clone.style.setProperty('padding-top',    '0px',              'important');
+          clone.style.setProperty('padding-bottom', savedPaddingBottom, 'important');
+        }
 
         viewport.appendChild(clone);
         pageDiv.appendChild(viewport);
