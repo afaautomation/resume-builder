@@ -1,5 +1,6 @@
 const { getDb } = require('../config/database');
 const { generatePreviewHtml } = require('../services/previewService');
+const { flushResumeSheetSync } = require('../services/googleSheetsService');
 const logger = require('../config/logger');
 
 /**
@@ -62,6 +63,12 @@ async function previewFromData(req, res) {
         <p style="margin: 0;">The selected template could not be loaded.</p>
       </div>
     `);
+  }
+
+  if (content) {
+    flushResumeSheetSync(req.body.resumeId, content).catch(err => {
+      logger.error(`[GoogleSheets] Export sync error: ${err.message}`);
+    });
   }
 
   const previewHtml = generatePreviewHtml(

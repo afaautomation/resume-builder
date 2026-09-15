@@ -92,13 +92,14 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     fontFamily = 'Inter, sans-serif',
     fontSize = 11,
     lineHeight = 1.5,
-    margins = { top: 10, right: 12.7, bottom: 10, left: 12.7 },
+    margins = { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
   } = design || {};
 
-  const mTop    = mmToPx(margins.top    ?? 10);
-  const mRight  = mmToPx(margins.right  ?? 12.7);
-  const mBottom = mmToPx(margins.bottom ?? 10);
-  const mLeft   = mmToPx(margins.left   ?? 12.7);
+  const defaultMargin = 12.7;
+  const mTop    = mmToPx(margins.top    ?? defaultMargin);
+  const mRight  = mmToPx(margins.right  ?? margins.left ?? defaultMargin);
+  const mBottom = mmToPx(margins.bottom ?? margins.right ?? margins.top ?? defaultMargin);
+  const mLeft   = mmToPx(margins.left   ?? margins.right ?? defaultMargin);
 
   const cssVars = `
     :root {
@@ -117,6 +118,10 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
   const baseStyles = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@400;500;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap');
     
+    * {
+      box-sizing: border-box !important;
+    }
+
     body {
       font-family: var(--font-family) !important;
       font-size: var(--font-size) !important;
@@ -125,6 +130,16 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
       margin: 0 !important;
       padding: 0 !important;
       -webkit-print-color-adjust: exact;
+      overflow-wrap: break-word !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+    }
+
+    p, span, div, li, h1, h2, h3, h4, h5, h6, a, strong, em, td, th {
+      overflow-wrap: break-word !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+      max-width: 100% !important;
     }
 
     @media screen {
@@ -155,24 +170,32 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     }
 
     @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
       html, body {
         background: #fff !important;
         overflow: visible !important;
         padding: 0 !important;
         margin: 0 !important;
-        display: block !important;
+        width: 794px !important;
       }
       #preview-content {
         display: block !important;
         padding: 0 !important;
+        margin: 0 !important;
         gap: 0 !important;
       }
       .page {
         box-shadow: none !important;
         border-radius: 0 !important;
         margin: 0 !important;
-        page-break-inside: avoid;
-        break-inside: avoid;
+        padding: 0 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        overflow: hidden !important;
+        position: relative !important;
       }
       .page:not(:last-child) {
         page-break-after: always !important;
@@ -189,12 +212,15 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
       height: 1123px;
       overflow: hidden;
       position: relative;
+      background: #ffffff;
+      box-sizing: border-box;
     }
 
     .page-inner {
       padding: ${mTop}px ${mRight}px ${mBottom}px ${mLeft}px !important;
       box-sizing: border-box;
-      height: 100%;
+      width: 100%;
+      max-width: 794px;
     }
 
     .bleed-header {
@@ -203,25 +229,32 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
       margin-left: -${mLeft}px !important;
     }
 
-    section, .item, .section {
+    section, .item, .section, .sec {
       page-break-inside: avoid;
       break-inside: avoid;
     }
 
     h1, h2, h3, h4, h5, h6 { line-height: 1.25 !important; }
+    h1 { margin-top: 0 !important; margin-bottom: 4px; line-height: 1.15 !important; }
     h2 { margin-top: 6pt; margin-bottom: 4pt; }
     p, li { margin-bottom: 2pt; }
     a { color: var(--primary); text-decoration: none; }
     ul { padding-left: 1.2em; }
     li { margin-bottom: 2px; }
 
-    /* Kill any extra top margin/padding on the very first element inside the page so
-       templates don't double-stack spacing on top of page-inner's own padding. */
-    .page-inner > *:first-child {
+    header {
       margin-top: 0 !important;
       padding-top: 0 !important;
     }
-    /* Exception: bleed-header is intentional and should NOT have this override */
+
+    .page-inner > *:first-child,
+    .page-inner > *:first-child > *:first-child,
+    .page-inner > *:first-child > *:first-child > h1,
+    .page-inner > *:first-child > header,
+    .page-inner > *:first-child > header > h1 {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
     .page-inner > .bleed-header:first-child {
       padding-top: 0 !important;
       margin-top: -${mTop}px !important;
@@ -247,6 +280,9 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Resume</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@400;500;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>${cssVars}${baseStyles}${compiledCss}</style>
 </head>
 <body>
@@ -259,204 +295,222 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
   </div>
 
   <script>
-    let originalHtml = null;
+    let originalTemplateMarkup = null;
 
     function paginate() {
       const container = document.getElementById('preview-content');
       if (!container) return;
 
-      // ── 1. Capture original HTML once ────────────────────────────────────────
-      let originalPage = document.getElementById('original-page');
-      if (!originalHtml && originalPage) {
-        originalHtml = originalPage.innerHTML;
-      }
-      if (!originalPage && originalHtml) {
-        container.innerHTML = '<div class="page" id="original-page">' + originalHtml + '</div>';
-        originalPage = document.getElementById('original-page');
-      }
-      if (!originalPage) return;
-
-      const pageInner = originalPage.querySelector('.page-inner');
-      if (!pageInner) return;
-
       const A4_H = 1123;
       const A4_W = 794;
 
-      // ── 2. Measure true content height ───────────────────────────────────────
-      originalPage.style.height = 'auto';
-      originalPage.style.overflow = 'visible';
+      // 1. Capture pristine template markup on initial run
+      let originalPage = document.getElementById('original-page');
+      if (!originalTemplateMarkup && originalPage) {
+        originalTemplateMarkup = originalPage.innerHTML;
+      }
+      if (!originalTemplateMarkup) return;
+
+      // Restore measuring container to natural height
+      container.innerHTML = '<div class="page" id="original-page" style="width:' + A4_W + 'px; height:auto; min-height:' + A4_H + 'px; overflow:visible; position:relative;">' + originalTemplateMarkup + '</div>';
+      originalPage = document.getElementById('original-page');
+      const pageInner = originalPage.querySelector('.page-inner');
+      if (!pageInner) return;
+
       pageInner.style.height = 'auto';
       pageInner.style.overflow = 'visible';
 
-      const templateRoot = pageInner.firstElementChild;
-      const totalH = templateRoot
-        ? templateRoot.offsetHeight || templateRoot.scrollHeight
-        : pageInner.scrollHeight;
-
-      // Save top/bottom padding from page-inner
-      const computedStyles = window.getComputedStyle(pageInner);
-      const savedPaddingTop = computedStyles.paddingTop;
-      const savedPaddingBottom = computedStyles.paddingBottom;
-      const padTop = parseFloat(savedPaddingTop) || 0;
-      const padBot = parseFloat(savedPaddingBottom) || 0;
-
-      // Remove top/bottom padding during measurement so element bounding rects
-      // are relative to the content area top (not shifted by padding).
-      pageInner.style.setProperty('padding-top', '0px', 'important');
-      pageInner.style.setProperty('padding-bottom', '0px', 'important');
-
-      // USABLE_H = the pixel height of one A4 page minus top & bottom margin
-      const USABLE_H = A4_H - padTop - padBot;
-
-      // Find atomic layout elements (leaves of the DOM tree)
-      const allElements = Array.from(pageInner.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, tr, td, th, .skill-item, .skill-tag, img, svg, div, span, strong'));
-      const elements = allElements.filter(el => {
-        const hasBlockChildren = el.querySelector('p, div, section, ul, ol, h1, h2, h3, h4, h5, h6, tr, table');
-        return !hasBlockChildren;
-      });
+      // Measure margins
+      const cs = window.getComputedStyle(pageInner);
+      const padTop = parseFloat(cs.paddingTop) || 48;
+      const padBot = parseFloat(cs.paddingBottom) || 48;
+      const padLeft = cs.paddingLeft || '48px';
+      const padRight = cs.paddingRight || '48px';
 
       const pageInnerRect = pageInner.getBoundingClientRect();
-      const scale = pageInnerRect.width / (pageInner.offsetWidth || 794) || 1;
+      const topOffset = pageInnerRect.top;
+      const scale = (pageInnerRect.width > 0 && pageInner.offsetWidth > 0)
+        ? (pageInnerRect.width / pageInner.offsetWidth)
+        : 1;
 
-      const relativeRects = elements.map(el => {
+      const totalH = Math.max(pageInner.scrollHeight, pageInner.offsetHeight, originalPage.scrollHeight);
+
+      // If entire content fits in a single A4 page with bottom margin
+      if (totalH <= (A4_H - padBot)) {
+        originalPage.style.height = A4_H + 'px';
+        originalPage.style.overflow = 'hidden';
+        return;
+      }
+
+      // Collect all text line boxes using Range.getClientRects()
+      const textNodes = [];
+      const walker = document.createTreeWalker(pageInner, NodeFilter.SHOW_TEXT, null, false);
+      let textNode;
+      while (textNode = walker.nextNode()) {
+        if (textNode.nodeValue && textNode.nodeValue.trim().length > 0) {
+          textNodes.push(textNode);
+        }
+      }
+
+      const lineBoxes = [];
+      const range = document.createRange();
+      for (const tn of textNodes) {
+        try {
+          range.selectNodeContents(tn);
+          const rects = range.getClientRects();
+          for (let k = 0; k < rects.length; k++) {
+            const r = rects[k];
+            if (r.width > 0 && r.height > 0) {
+              lineBoxes.push({
+                top: (r.top - topOffset) / scale,
+                bottom: (r.bottom - topOffset) / scale,
+                height: r.height / scale,
+                parent: tn.parentElement
+              });
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Collect block elements (sections, items, headings, lists, table rows, images)
+      const blockElements = Array.from(pageInner.querySelectorAll('h1, h2, h3, h4, h5, h6, .section-title, section, .sec, .resume-section, .item, .experience-item, .project-item, .education-item, tr, li, p, img, svg, table, header, .skills-list, .skill-item'));
+      const blockBoxes = blockElements.map(el => {
         const r = el.getBoundingClientRect();
-        const top = (r.top - pageInnerRect.top) / scale;
-        const bottom = (r.bottom - pageInnerRect.top) / scale;
+        const top = (r.top - topOffset) / scale;
+        const bottom = (r.bottom - topOffset) / scale;
         const height = r.height / scale;
-        return { top, bottom, height, el };
+        const tag = el.tagName.toUpperCase();
+        const isHeading = ['H1','H2','H3','H4','H5','H6'].includes(tag) || el.classList.contains('section-title');
+        const isItem = el.classList.contains('item') || el.classList.contains('experience-item') || el.classList.contains('project-item') || el.classList.contains('education-item') || tag === 'TR';
+        const isSection = tag === 'SECTION' || el.classList.contains('sec') || el.classList.contains('resume-section');
+        return { el, top, bottom, height, isHeading, isItem, isSection, tag };
       });
 
-      // ── 3. Calculate page break offsets (in content-coordinate space) ─────────
-      // All offsets are in the "no-padding" coordinate space of pageInner.
+      // Calculate pagination break offsets
       const offsets = [0];
       let currentOffset = 0;
 
-      while (currentOffset < totalH - 5) {
-        let idealEnd = currentOffset + USABLE_H;
-        if (idealEnd >= totalH) break;
+      while (currentOffset < totalH - 10) {
+        // Page 1 usable height is A4_H - padBot
+        // Page 2+ usable height is A4_H - padTop - padBot
+        const usableHeightOnThisPage = (currentOffset === 0)
+          ? (A4_H - padBot)
+          : (A4_H - padTop - padBot);
 
-        let adjustedEnd = idealEnd;
+        const idealEnd = currentOffset + usableHeightOnThisPage;
 
-        // Find elements that are sliced by idealEnd
-        const cutItems = relativeRects.filter(
-          item => item.top + 2 < idealEnd && item.bottom - 2 > idealEnd
-        );
+        // If remaining content fits completely within this page with bottom margin:
+        if (idealEnd >= totalH) {
+          break;
+        }
 
-        if (cutItems.length > 0) {
-          let candidateBreaks = [];
-          for (const item of cutItems) {
-            if (item.height <= USABLE_H && item.top > currentOffset + 30) {
-              let breakAt = item.top;
-              // Try breaking before the parent wrapper for a cleaner split
-              const parent = item.el.parentElement;
-              if (parent && parent !== pageInner) {
-                const pr = parent.getBoundingClientRect();
-                const pTop = (pr.top - pageInnerRect.top) / scale;
-                if (pTop > currentOffset + 30 && pTop < breakAt && (idealEnd - pTop) < 300) {
-                  breakAt = pTop;
-                }
-              }
-              candidateBreaks.push(breakAt);
+        let breakY = idealEnd;
+
+        // Rule 1: Never slice ANY line of text. Find any line that crosses breakY and break before it.
+        const cutLines = lineBoxes.filter(l => l.top + 2 < breakY && l.bottom - 2 > breakY);
+        if (cutLines.length > 0) {
+          const earliestCutLineTop = Math.min(...cutLines.map(l => l.top));
+          if (earliestCutLineTop > currentOffset + 40) {
+            breakY = earliestCutLineTop - 2;
+          }
+        }
+
+        // Rule 2: Heading keep-with-next & section border prevention.
+        // If a heading or section header is near breakY, push it to the next page
+        for (const b of blockBoxes) {
+          if (b.isHeading && b.bottom <= breakY && (breakY - b.bottom) < 80) {
+            if (b.top > currentOffset + 40) {
+              breakY = b.top - 2;
+            }
+          } else if (b.isHeading && b.top + 2 < breakY && b.bottom - 2 > breakY) {
+            if (b.top > currentOffset + 40) {
+              breakY = b.top - 2;
             }
           }
-          if (candidateBreaks.length > 0) {
-            const minBreak = Math.min(...candidateBreaks);
-            if (minBreak > currentOffset + 30) adjustedEnd = minBreak;
+        }
+
+        // Rule 3: Keep items intact if starting close to bottom
+        for (const b of blockBoxes) {
+          if (b.isItem && b.top + 2 < breakY && b.bottom - 2 > breakY) {
+            if (b.top > currentOffset + 40 && (breakY - b.top) < 140) {
+              breakY = b.top - 2;
+            }
           }
         }
 
-        // Heading keep-with-next: don't orphan a heading at the very bottom
-        for (const item of relativeRects) {
-          const isHeading = ['H1','H2','H3','H4','H5','H6'].includes(item.el.tagName)
-            || (item.el.classList && item.el.classList.contains('section-title'));
-          if (isHeading && item.bottom <= adjustedEnd && (adjustedEnd - item.bottom) < 60) {
-            if (item.top > currentOffset + 30) adjustedEnd = item.top;
+        // Rule 4: Re-verify that breakY does not slice any line after adjustments
+        const finalCutLines = lineBoxes.filter(l => l.top + 2 < breakY && l.bottom - 2 > breakY);
+        if (finalCutLines.length > 0) {
+          const minL = Math.min(...finalCutLines.map(l => l.top));
+          if (minL > currentOffset + 40) {
+            breakY = minL - 2;
           }
         }
 
-        // Safety: guarantee forward progress
-        if (adjustedEnd <= currentOffset + 30) adjustedEnd = idealEnd;
+        // Safety forward progress guarantee
+        if (breakY <= currentOffset + 40) {
+          breakY = idealEnd;
+        }
 
-        offsets.push(adjustedEnd);
-        currentOffset = adjustedEnd;
+        offsets.push(breakY);
+        currentOffset = breakY;
       }
 
-      // ── 4. Render Pages ──────────────────────────────────────────────────────
-      // Key coordinate model:
-      //
-      //  Page 1  clone: top=0, padding-top restored → content starts at padTop px
-      //                 The break point (offsets[1]) is in content-coordinates.
-      //                 In rendered coordinates the break sits at padTop + offsets[1].
-      //                 viewport height must be padTop + offsets[1] to show everything.
-      //
-      //  Page N  clone: top = -(offsets[i]) px, padding-top = 0
-      //                 Content for this page starts at content-coord offsets[i].
-      //                 After the shift, that maps to rendered coord 0 inside the clone.
-      //                 Viewport top = padTop (margin), height = rawVisibleH (content slice).
-      //                 The outer page div (overflow:hidden, height:A4_H) clips the rest.
-
+      // Render the paginated A4 pages
       container.innerHTML = '';
 
       for (let i = 0; i < offsets.length; i++) {
-        const startY    = offsets[i];
+        const startY = offsets[i];
         const isLastPage = (i + 1 >= offsets.length);
-        const endY       = isLastPage ? totalH : offsets[i + 1];
-        const rawVisibleH = Math.ceil(endY - startY);   // height of content slice in px
+        const endY = isLastPage ? totalH : offsets[i + 1];
+        const sliceH = Math.ceil(endY - startY);
 
-        // ── Outer A4 page shell ──
         const pageDiv = document.createElement('div');
         pageDiv.className = 'page';
-        pageDiv.style.width           = A4_W + 'px';
-        pageDiv.style.height          = A4_H + 'px';
-        pageDiv.style.position        = 'relative';
-        pageDiv.style.overflow        = 'hidden';   // ← this is the final clip boundary
+        pageDiv.style.width = A4_W + 'px';
+        pageDiv.style.height = A4_H + 'px';
+        pageDiv.style.position = 'relative';
+        pageDiv.style.overflow = 'hidden';
         pageDiv.style.backgroundColor = '#ffffff';
-        pageDiv.style.flexShrink      = '0';
+        pageDiv.style.flexShrink = '0';
+        pageDiv.style.boxSizing = 'border-box';
 
-        // ── Viewport strip (clips to the content slice for this page) ──
         const viewport = document.createElement('div');
-        viewport.className      = 'page-viewport';
+        viewport.className = 'page-viewport';
         viewport.style.position = 'absolute';
-        viewport.style.left     = '0';
-        viewport.style.width    = '100%';
+        viewport.style.left = '0';
+        viewport.style.width = '100%';
         viewport.style.overflow = 'hidden';
 
-        // ── Clone of page-inner with content shifted to show this slice ──
         const clone = document.createElement('div');
-        clone.innerHTML = pageInner.innerHTML;
         clone.className = pageInner.className;
-        clone.setAttribute('style', pageInner.getAttribute('style') || '');
+        clone.innerHTML = pageInner.innerHTML;
         clone.style.position = 'absolute';
-        clone.style.left     = '0';
-        clone.style.width    = '100%';
-        clone.style.height   = 'auto';
-        clone.style.overflow = 'visible';
+        clone.style.left = '0';
+        clone.style.width = '100%';
+        clone.style.height = 'auto';
+
+        // Keep identical padding on clone so internal coordinates match measurement exactly
+        clone.style.paddingTop = padTop + 'px';
+        clone.style.paddingBottom = padBot + 'px';
+        clone.style.paddingLeft = padLeft;
+        clone.style.paddingRight = padRight;
 
         if (i === 0) {
           // Page 1:
-          //   • Clone starts at top:0 with padding restored.
-          //     Content area begins at padTop px inside the clone.
-          //   • Break point in rendered coords = padTop + rawVisibleH
-          //   • Viewport height = padTop + rawVisibleH (+ padBot if only page)
-          //     capped at A4_H so it never exceeds the page shell.
-          const vpH = Math.min(padTop + rawVisibleH + (isLastPage ? padBot : 0), A4_H);
-          viewport.style.top    = '0px';
+          const maxVpH = A4_H - padBot;
+          const vpH = Math.min(sliceH, maxVpH);
+          viewport.style.top = '0px';
           viewport.style.height = vpH + 'px';
           clone.style.top = '0px';
-          clone.style.setProperty('padding-top',    savedPaddingTop,    'important');
-          clone.style.setProperty('padding-bottom', savedPaddingBottom, 'important');
         } else {
           // Pages 2+:
-          //   • Clone is shifted up by startY so the right content lands at top:0.
-          //   • We add back padTop as the viewport's top offset (page margin).
-          //   • Viewport height = rawVisibleH (content slice) + padBot on last page,
-          //     capped at USABLE_H so nothing overflows the page shell below.
-          const vpH = Math.min(rawVisibleH + (isLastPage ? padBot : 0), USABLE_H);
-          viewport.style.top    = padTop + 'px';
+          const maxVpH = A4_H - padTop - padBot;
+          const vpH = Math.min(sliceH, maxVpH);
+          viewport.style.top = padTop + 'px';
           viewport.style.height = vpH + 'px';
+          // Shift clone so coordinate startY lines up exactly at the top of the viewport
           clone.style.top = '-' + startY + 'px';
-          clone.style.setProperty('padding-top',    '0px',              'important');
-          clone.style.setProperty('padding-bottom', savedPaddingBottom, 'important');
         }
 
         viewport.appendChild(clone);
@@ -486,8 +540,7 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     } else {
       runPaginate();
     }
-    // Do NOT re-run on window.load — fonts.ready is sufficient and prevents double-pagination
-    window.addEventListener('resize', () => { originalHtml = null; paginate(); });
+    window.addEventListener('resize', () => { originalTemplateMarkup = null; paginate(); });
   </script>
 </body>
 </html>`;

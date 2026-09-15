@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const {
   register, login, refreshToken, getMe, updateProfile,
-  loginWithPhone,
+  loginWithPhone, loginWithGoogle,
   registerRules, loginRules,
 } = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth');
@@ -26,6 +26,13 @@ router.post('/login', loginRules, login);
  * @access  Public
  */
 router.post('/login-phone', loginWithPhone);
+
+/**
+ * @route   POST /api/auth/google
+ * @desc    Sign in or register with Google
+ * @access  Public
+ */
+router.post('/google', loginWithGoogle);
 
 /**
  * @route   POST /api/auth/refresh

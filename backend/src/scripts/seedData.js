@@ -221,66 +221,6 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_creative_1',
-    name: 'Creative Mint',
-    description: 'Fresh two-column layout for creative professionals.',
-    category: 'creative',
-    layout: 'two-column',
-    thumbnail_url: 'assets/creative_mint.png',
-    is_ats_safe: 0,
-    is_premium: 1,
-    tags: JSON.stringify(['creative', 'mint']),
-    html_content: `
-      <div style="display:flex; min-height:297mm;">
-        <aside style="width:35%; background:#f0fdf4; padding:30px; border-right:1px solid #dcfce7;">
-          <h1 style="font-size:22pt; color:#166534; line-height:1.1; margin-bottom:5px;">{{contact.name}}</h1>
-          {{#if contact.title}}<div style="font-size:11pt; color:#15803d; font-weight:600; margin-bottom:20px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
-          <div style="margin-bottom:30px;">
-            <h2 style="font-size:11pt; color:#166534; text-transform:uppercase; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">Contact</h2>
-            <p style="font-size:9pt; margin:5px 0;">{{contact.email}}</p>
-            <p style="font-size:9pt; margin:5px 0;">{{contact.phone}}</p>
-            <p style="font-size:9pt; margin:5px 0;">{{contact.location}}</p>
-            {{#if contact.linkedin}}<p style="font-size:9pt; margin:5px 0;">LI: {{contact.linkedin}}</p>{{/if}}
-            {{#if contact.github}}<p style="font-size:9pt; margin:5px 0;">GH: {{contact.github}}</p>{{/if}}
-          </div>
-          {{#if skills.length}}
-          <div style="margin-bottom:30px;">
-            <h2 style="font-size:11pt; color:#166534; text-transform:uppercase; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">Skills</h2>
-            <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;">
-              {{#each skills}}<span style="background:#dcfce7; padding:2px 8px; border-radius:4px; font-size:8.5pt; font-weight:600;">{{this}}</span>{{/each}}
-            </div>
-          </div>
-          {{/if}}
-          {{#if education.length}}
-          <div>
-            <h2 style="font-size:11pt; color:#166534; text-transform:uppercase; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">Education</h2>
-            {{#each education}}<div style="margin-top:10px;"><strong style="font-size:9pt;">{{degree}}</strong><p style="font-size:8.5pt; margin:2px 0;">{{institution}}</p></div>{{/each}}
-          </div>
-          {{/if}}
-        </aside>
-        <main style="width:65%; padding:40px;">
-          {{#if summary}}<section style="margin-bottom:30px;"><h2>Profile</h2><p>{{nl2br summary}}</p></section>{{/if}}
-          {{#if experience.length}}<section style="margin-bottom:30px;"><h2>Experience</h2>{{#each experience}}<div style="margin-bottom:20px;"><h3>{{title}}</h3><div style="color:#16a34a; font-weight:600; font-size:9pt;">{{company}} | {{startDate}} - {{endDate}}</div><p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-          {{#if projects.length}}<section style="margin-bottom:30px;"><h2>Projects</h2>{{#each projects}}<div style="margin-bottom:15px;"><h3>{{name}}</h3>{{#if link}}<a href="{{link}}" style="font-size:9pt; color:#16a34a;">{{link}}</a>{{/if}}<p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
-          {{#if certifications.length}}<section><h2>Certifications</h2>{{#each certifications}}<div style="margin-bottom:15px;"><h3>{{name}}</h3><div style="color:#16a34a; font-weight:600; font-size:9pt;">{{issuer}} | {{date}}</div></div>{{/each}}</section>{{/if}}
-          {{#if additional.length}}<section><h2>Additional</h2>{{#each additional}}<div style="margin-bottom:10px;"><strong>{{title}}:</strong><p style="font-size:9.5pt; margin-top:2px;">{{value}}</p></div>{{/each}}</section>{{/if}}
-          {{#if languages.length}}<section><h2>Languages</h2><div style="display:flex; flex-wrap:wrap; gap:10px;">{{#each languages}}<div style="background:#f0fdf4; padding:4px 10px; border-radius:4px; font-size:9pt;"><strong>{{name}}</strong>: {{level}}</div>{{/each}}</div></section>{{/if}}
-          {{#if references.length}}<section><h2>References</h2>{{#each references}}<div style="margin-bottom:10px;"><strong>{{name}}</strong><div style="font-size:8.5pt;">{{title}} | {{contact}}</div></div>{{/each}}</section>{{/if}}
-        </main>
-      </div>
-    `,
-    css_content: `
-      :root {
-        --primary: {{#if design.primaryColor}}{{design.primaryColor}}{{else}}#166534{{/if}};
-        --font-family: {{#if design.fontFamily}}{{{design.fontFamily}}}{{else}}'Source Sans Pro', sans-serif{{/if}};
-      }
-      body { font-family: var(--font-family); color: #1e293b; margin: 0; }
-      h2 { font-size: 15pt; color: #166534; border-bottom: 2px solid #f0fdf4; padding-bottom: 5px; margin-bottom: 15px; }
-      h3 { font-size: 13pt; margin-bottom: 4px; }
-      p { font-size: 10pt; margin: 0; }
-    `
-  },
-  {
     id: 'tmpl_dark_1',
     name: 'Midnight Professional',
     description: 'Striking dark-themed header for a bold impression.',
@@ -484,7 +424,8 @@ const templates = [
         {{#if summary}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Research Profile</h2><p style="font-size:10.5pt; line-height:1.6;">{{nl2br summary}}</p></section>{{/if}}
         {{#if experience.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Academic Experience</h2>{{#each experience}}<div style="margin-bottom:15px;"><strong>{{title}}</strong>, <span style="font-style:italic;">{{company}}</span><br><span style="font-size:9pt; color:#718096;">{{startDate}} - {{endDate}}</span><p style="font-size:10pt; margin-top:5px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if education.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Education</h2>{{#each education}}<div style="margin-bottom:12px;"><strong>{{degree}}</strong><br>{{institution}} | <span style="font-size:9pt; color:#718096;">Graduated {{endDate}}</span></div>{{/each}}</section>{{/if}}
-        {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:8px;"><strong>{{name}}</strong> ({{issuer}}, {{date}})</div>{{/each}}</section>{{/if}}
+        {{#if projects.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Projects & Research</h2>{{#each projects}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong>{{#if link}}<a href="{{link}}" style="font-size:9pt; color:var(--primary, #2d3748);">{{link}}</a>{{/if}}</div><p style="font-size:10pt; margin-top:4px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
+        {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:8px;"><strong>{{name}}</strong>{{#if issuer}} ({{issuer}}{{#if date}}, {{date}}{{/if}}){{else}}{{#if date}} ({{date}}){{/if}}{{/if}}</div>{{/each}}</section>{{/if}}
         {{#if skills.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Technical Skills</h2><p style="font-size:10pt;">{{join skills ", "}}</p></section>{{/if}}
         {{#if additional.length}}<section style="margin-bottom:25px;"><h2 style="font-size:14pt; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Additional Details</h2>{{#each additional}}<div><strong>{{title}}:</strong> {{value}}</div>{{/each}}</section>{{/if}}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
@@ -552,4 +493,7 @@ const writingTips = [
   { id: 'tip_5', section: 'skills', tip: 'List both technical and soft skills.', example: 'Python, JavaScript, Leadership, Communication' }
 ];
 
-module.exports = { templates, writingTips };
+const allowedTemplateIds = ['tmpl_classic_1', 'tmpl_minimal_1', 'tmpl_academic_1'];
+const activeTemplates = templates.filter(t => allowedTemplateIds.includes(t.id));
+
+module.exports = { templates: activeTemplates, writingTips };

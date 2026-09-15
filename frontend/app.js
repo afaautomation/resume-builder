@@ -105,6 +105,7 @@ function updateLogoutButtons() {
 
 window.logout = () => {
     localStorage.removeItem('token');
+    if (typeof clearAuthInputs === 'function') clearAuthInputs();
     showToast('Logged out successfully', 'success');
     updateLogoutButtons();
     switchView('landing');
@@ -115,18 +116,70 @@ async function fetchTemplatesForPicker() {
     const grid = document.getElementById('template-picker-grid');
     if (!grid) return;
 
+    const metaMap = {
+        'tmpl_classic_1': {
+            badge: 'Corporate & Legal',
+            badgeIcon: 'briefcase',
+            ats: 'ATS 99%',
+            cta: 'Use Classic Serif'
+        },
+        'tmpl_minimal_1': {
+            badge: 'Most Popular',
+            badgeIcon: 'flame',
+            ats: 'ATS 100%',
+            cta: 'Use Minimalist',
+            featured: true
+        },
+        'tmpl_academic_1': {
+            badge: 'Academic & Research',
+            badgeIcon: 'graduation-cap',
+            ats: 'ATS 98%',
+            cta: 'Use Academic Pro'
+        }
+    };
+
     const renderTemplates = (templates) => {
-        grid.innerHTML = templates.map(t => `
-            <div class="template-card" onclick="startBuildingWithTemplate('${t.id}')">
+        const allowedIds = ['tmpl_classic_1', 'tmpl_minimal_1', 'tmpl_academic_1'];
+        const validTemplates = (templates || []).filter(t => allowedIds.includes(t.id));
+        grid.innerHTML = validTemplates.map(t => {
+            const meta = metaMap[t.id] || {
+                badge: 'ATS-Friendly',
+                badgeIcon: 'file-text',
+                ats: 'ATS 99%',
+                cta: 'Use Template'
+            };
+            const isFeatured = !!meta.featured;
+            return `
+            <div class="template-card ${isFeatured ? 'featured-template' : ''}" onclick="startBuildingWithTemplate('${t.id}')">
+                ${isFeatured ? '<div class="popular-ribbon"><i data-lucide="sparkles"></i> Most Popular</div>' : ''}
                 <div class="template-thumb">
-                    ${t.thumbnail_url ? `<img src="${t.thumbnail_url}" alt="${t.name}">` : '<!-- Placeholder -->'}
+                    <div class="thumb-header-chips">
+                        <span class="chip-category"><i data-lucide="${meta.badgeIcon}"></i> ${meta.badge}</span>
+                        <span class="chip-ats"><i data-lucide="shield-check"></i> ${meta.ats}</span>
+                    </div>
+                    <div class="paper-preview-container">
+                        ${t.thumbnail_url ? `<img src="${t.thumbnail_url}" alt="${t.name}" loading="lazy">` : ''}
+                    </div>
+                    <div class="template-card-hover-overlay">
+                        <button type="button" class="quick-select-btn">
+                            <i data-lucide="sparkles"></i>
+                            <span>Select Design</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="template-info">
-                    <h4>${t.name}</h4>
-                    <p>${t.description || 'Professional & ATS-friendly'}</p>
+                    <div class="template-text-group">
+                        <h3 class="template-title">${t.name}</h3>
+                        <p class="template-description">${t.description || 'Professional & ATS-friendly layout'}</p>
+                    </div>
+                    <div class="template-action-btn">
+                        <span>${meta.cta}</span>
+                        <i data-lucide="arrow-right"></i>
+                    </div>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
         lucide.createIcons();
     };
 
@@ -155,10 +208,21 @@ async function fetchTemplatesForPicker() {
 
 let pendingTemplateId = null;
 
+function clearAuthInputs() {
+    const form = document.getElementById('auth-form');
+    if (form) form.reset();
+    ['auth-name', 'auth-phone', 'auth-email', 'auth-password'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+window.clearAuthInputs = clearAuthInputs;
+
 async function startBuildingWithTemplate(templateId) {
     // Show login modal if user is not authenticated
     if (!localStorage.getItem('token')) {
         pendingTemplateId = templateId;
+        clearAuthInputs();
         document.getElementById('otp-auth-modal').classList.remove('hidden');
         return;
     }
@@ -194,78 +258,198 @@ async function startBuildingWithTemplate(templateId) {
 window.startBuildingWithTemplate = startBuildingWithTemplate;
 
 
-// --- OTP Auth Logic ---
-let isSignupMode = true;
+// --- Dark Themed Auth Logic ---
+let isSignupMode = false; // Default to Sign In mode as shown in the mockup
+
+function setAuthMode(signup) {
+    isSignupMode = signup;
+    const tabSignup = document.getElementById('tab-signup');
+    const tabLogin = document.getElementById('tab-login');
+    const signupExtraFields = document.getElementById('signup-extra-fields');
+    const title = document.getElementById('auth-modal-title');
+    const subtitle = document.getElementById('auth-modal-subtitle');
+    const submitBtn = document.getElementById('submit-auth-btn');
+    const footerText = document.getElementById('auth-footer-text');
+    const switchLink = document.getElementById('auth-switch-link');
+    const nameInput = document.getElementById('auth-name');
+    const phoneInput = document.getElementById('auth-phone');
+    const emailLabel = document.getElementById('email-label');
+
+    if (isSignupMode) {
+        if (tabSignup) tabSignup.classList.add('active');
+        if (tabLogin) tabLogin.classList.remove('active');
+        if (signupExtraFields) signupExtraFields.style.display = 'block';
+        if (title) title.textContent = 'Create Account';
+        if (subtitle) subtitle.innerHTML = '';
+        if (submitBtn) submitBtn.textContent = 'Create Account';
+        if (footerText) footerText.textContent = 'Already have an account?';
+        if (switchLink) switchLink.textContent = 'Sign in';
+        if (nameInput) nameInput.required = true;
+        if (phoneInput) phoneInput.required = true;
+        if (emailLabel) emailLabel.textContent = 'Email address';
+    } else {
+        if (tabLogin) tabLogin.classList.add('active');
+        if (tabSignup) tabSignup.classList.remove('active');
+        if (signupExtraFields) signupExtraFields.style.display = 'none';
+        if (title) title.textContent = 'Sign In';
+        if (subtitle) subtitle.innerHTML = '';
+        if (submitBtn) submitBtn.textContent = 'Sign In';
+        if (footerText) footerText.textContent = "Don't have an account?";
+        if (switchLink) switchLink.textContent = 'Sign up';
+        if (nameInput) nameInput.required = false;
+        if (phoneInput) phoneInput.required = false;
+        if (emailLabel) emailLabel.textContent = 'Email or Mobile';
+    }
+}
+
+window.toggleAuthMode = function () {
+    setAuthMode(!isSignupMode);
+};
+
+window.handleForgotPassword = function () {
+    showToast('Sign in using your mobile number or email for instant access!', 'info');
+};
+
+window.continueWithGoogle = async function () {
+    const userEmail = prompt('Enter your Google email address to continue:');
+    if (!userEmail || !userEmail.trim()) return;
+
+    const email = userEmail.trim();
+    const btn = document.getElementById('google-auth-btn');
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Connecting to Google...';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, name: email.split('@')[0] })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Google authentication failed');
+
+        localStorage.setItem('token', data.tokens.access);
+        document.getElementById('otp-auth-modal').classList.add('hidden');
+        clearAuthInputs();
+        showToast(`Welcome ${data.user.name || ''}!`, 'success');
+        updateLogoutButtons();
+
+        if (pendingTemplateId) {
+            startBuildingWithTemplate(pendingTemplateId);
+            pendingTemplateId = null;
+        }
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.innerHTML = originalContent;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const tabSignup = document.getElementById('tab-signup');
     const tabLogin = document.getElementById('tab-login');
-    const signupFields = document.getElementById('signup-fields');
 
     if (tabSignup && tabLogin) {
-        tabSignup.onclick = () => {
-            isSignupMode = true;
-            tabSignup.classList.add('active');
-            tabLogin.classList.remove('active');
-            signupFields.style.display = 'block';
-            document.getElementById('auth-name').required = true;
-            document.getElementById('auth-email').required = true;
-        };
-        tabLogin.onclick = () => {
-            isSignupMode = false;
-            tabLogin.classList.add('active');
-            tabSignup.classList.remove('active');
-            signupFields.style.display = 'none';
-            document.getElementById('auth-name').required = false;
-            document.getElementById('auth-email').required = false;
-        };
+        tabSignup.onclick = () => setAuthMode(true);
+        tabLogin.onclick = () => setAuthMode(false);
     }
+    setAuthMode(false); // Initial state
 });
 
 window.submitAuth = async function () {
-    const phone = document.getElementById('auth-phone').value.trim();
-    const name = document.getElementById('auth-name').value.trim();
-    const email = document.getElementById('auth-email').value.trim();
+    const emailOrPhone = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+    const nameInput = document.getElementById('auth-name');
+    const phoneInput = document.getElementById('auth-phone');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
     const btn = document.getElementById('submit-auth-btn');
 
-    if (!phone) return showToast('Please enter mobile number', 'error');
-    if (isSignupMode && (!name || !email)) return showToast('Please enter name and email', 'error');
+    if (isSignupMode) {
+        if (!name) return showToast('Please enter your full name', 'error');
+        if (!emailOrPhone) return showToast('Please enter your email address', 'error');
+        if (!phone) return showToast('Please enter your mobile number', 'error');
+    } else {
+        if (!emailOrPhone) return showToast('Please enter your email address or mobile number', 'error');
+    }
 
+    const origText = btn.textContent;
     btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Processing...';
-    lucide.createIcons();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     try {
-        const payload = { phone };
+        let res, data;
+
         if (isSignupMode) {
-            payload.name = name;
-            payload.email = email;
-        }
-
-        const res = await fetch(`${API_BASE}/auth/login-phone`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-
-        if (!res.ok) {
-            if (res.status === 404 && data.message.includes('Sign Up')) {
-                const tabSignup = document.getElementById('tab-signup');
-                if (tabSignup) tabSignup.click();
-                throw new Error('Mobile number not found. Please enter your name and email to sign up.');
+            // New user registration - saves to DB and appends to Google Sheets
+            res = await fetch(`${API_BASE}/auth/login-phone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: phone,
+                    name: name,
+                    email: emailOrPhone,
+                    password: password
+                })
+            });
+            data = await res.json();
+            
+            if (!res.ok) {
+                if (res.status === 409 || data.alreadyRegistered) {
+                    setAuthMode(false);
+                    const emailInput = document.getElementById('auth-email');
+                    if (emailInput) emailInput.value = emailOrPhone;
+                    const pwdInput = document.getElementById('auth-password');
+                    if (pwdInput) {
+                        pwdInput.value = '';
+                        pwdInput.focus();
+                    }
+                    showToast(data.message || 'This email is already registered. Please sign in.', 'info');
+                    return;
+                }
+                throw new Error(data.message || 'Registration failed');
             }
-            if (res.status === 409 && data.message.includes('Log In')) {
-                const tabLogin = document.getElementById('tab-login');
-                if (tabLogin) tabLogin.click();
-                throw new Error('This mobile number is already registered. Please Log In.');
+        } else {
+            // Sign In mode
+            // If password provided, try login (works with either email or mobile number)
+            if (password) {
+                try {
+                    res = await fetch(`${API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: emailOrPhone, password })
+                    });
+                    data = await res.json();
+                } catch (e) {}
             }
-            throw new Error(data.message || 'Authentication failed');
+
+            // If not authenticated yet or no password, authenticate via phone/email lookup
+            if (!data || !res.ok) {
+                res = await fetch(`${API_BASE}/auth/login-phone`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: emailOrPhone })
+                });
+                data = await res.json();
+            }
+
+            if (!res.ok) {
+                if (res.status === 404) {
+                    setAuthMode(true);
+                    throw new Error('Account not found. Please create an account to continue.');
+                }
+                throw new Error(data.message || 'Authentication failed. Please check your credentials.');
+            }
         }
 
         // Success
         localStorage.setItem('token', data.tokens.access);
         document.getElementById('otp-auth-modal').classList.add('hidden');
+        clearAuthInputs();
         showToast('Authentication successful!', 'success');
+        updateLogoutButtons();
 
         if (pendingTemplateId) {
             startBuildingWithTemplate(pendingTemplateId);
@@ -275,7 +459,8 @@ window.submitAuth = async function () {
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
-        btn.innerHTML = 'Continue';
+        btn.innerHTML = origText;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 };
 
@@ -834,7 +1019,9 @@ async function fetchTemplatesForEditor() {
     if (!list) return;
 
     const renderTemplates = (templates) => {
-        list.innerHTML = templates.map(t => `
+        const allowedIds = ['tmpl_classic_1', 'tmpl_minimal_1', 'tmpl_academic_1'];
+        const validTemplates = (templates || []).filter(t => allowedIds.includes(t.id));
+        list.innerHTML = validTemplates.map(t => `
             <div class="template-card ${state.currentResume.template_id === t.id ? 'selected' : ''}" 
                  onclick="switchTemplate('${t.id}')"
                  style="cursor:pointer; overflow:hidden; border:1px solid ${state.currentResume.template_id === t.id ? 'var(--primary)' : 'var(--border)'};">
@@ -1129,9 +1316,23 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const modal = e.target.closest('.modal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) {
+                modal.classList.add('hidden');
+                if (modal.id === 'otp-auth-modal' && typeof clearAuthInputs === 'function') clearAuthInputs();
+            }
         });
     });
+
+    // Close on backdrop click
+    const authModal = document.getElementById('otp-auth-modal');
+    if (authModal) {
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) {
+                authModal.classList.add('hidden');
+                if (typeof clearAuthInputs === 'function') clearAuthInputs();
+            }
+        });
+    }
 
     // Editor Actions — download PDF
     document.getElementById('download-pdf-btn').onclick = async () => {
@@ -1326,7 +1527,7 @@ async function generateClientPdf() {
                 scale: 2,
                 useCORS: true,
                 allowTaint: false,
-                letterRendering: true,
+                letterRendering: false,
                 scrollX: 0,
                 scrollY: 0,
                 windowWidth:  A4_W,

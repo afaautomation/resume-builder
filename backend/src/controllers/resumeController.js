@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../config/database');
 const { scoreResume } = require('../services/atsService');
+const { queueResumeSheetSync } = require('../services/googleSheetsService');
 const logger = require('../config/logger');
 
 const DEFAULT_CONTENT = JSON.stringify({
@@ -37,6 +38,13 @@ async function createResume(req, res) {
     id, (req.user ? req.user.id : 'guest_user'), finalTemplateId || null, title || 'Untitled Resume', content ? JSON.stringify(content) : DEFAULT_CONTENT, design ? JSON.stringify(design) : DEFAULT_DESIGN, sectionOrder ? JSON.stringify(sectionOrder) : DEFAULT_ORDER
   );
 
+  if (content) {
+    try {
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      queueResumeSheetSync({ resumeId: id, content: parsed });
+    } catch (e) {}
+  }
+
   const resume = await db.get('SELECT * FROM resumes WHERE id = ?', id);
   return res.status(201).json({ success: true, resume: parseResume(resume) });
 }
@@ -69,6 +77,13 @@ async function updateResume(req, res) {
     `UPDATE resumes SET title = COALESCE(?, title), template_id = COALESCE(?, template_id), content = COALESCE(?, content), design = COALESCE(?, design), section_order = COALESCE(?, section_order), is_public = COALESCE(?, is_public), ats_score = ?, ats_feedback = ?, updated_at = datetime('now') WHERE id = ?`,
     title || null, templateId || null, content ? JSON.stringify(content) : null, design ? JSON.stringify(design) : null, sectionOrder ? JSON.stringify(sectionOrder) : null, isPublic !== undefined ? (isPublic ? 1 : 0) : null, atsScore, atsFeedback, req.params.id
   );
+
+  if (content) {
+    try {
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      queueResumeSheetSync({ resumeId: req.params.id, content: parsed });
+    } catch (e) {}
+  }
 
   const updated = await db.get('SELECT * FROM resumes WHERE id = ?', req.params.id);
   return res.json({ success: true, resume: parseResume(updated) });
