@@ -1,0 +1,22 @@
+# ─── Hostinger Root .htaccess: Forward requests to frontend/ ───
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Prevent access to backend source code, environment files, and git
+    RewriteRule ^\.env - [F,L]
+    RewriteRule ^backend/(.*)$ - [F,L]
+    RewriteRule ^\.git - [F,L]
+
+    # If already requesting inside frontend, don't rewrite again
+    RewriteCond %{REQUEST_URI} ^/frontend/ [NC]
+    RewriteRule ^ - [L]
+
+    # Rewrite all public traffic to the frontend directory
+    RewriteCond %{REQUEST_URI} !^/frontend/
+    RewriteRule ^(.*)$ frontend/$1 [L]
+</IfModule>
+
+# If mod_rewrite is disabled, set DirectoryIndex to point to frontend/index.html or root index.html
+DirectoryIndex index.html frontend/index.html

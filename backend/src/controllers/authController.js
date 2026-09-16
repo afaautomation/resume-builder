@@ -6,6 +6,10 @@ const { generateTokens } = require('../middleware/auth');
 const logger = require('../config/logger');
 const { appendUserToSheet, getUserByPhone } = require('../services/googleSheetsService');
 
+function getPageUrl(req) {
+  return req.headers.referer || req.headers.origin || 'https://afaautomation-resume.hf.space/';
+}
+
 async function register(req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(422).json({ success: false, errors: errors.array() });
@@ -65,7 +69,7 @@ async function login(req, res) {
   }
 
   // Record login event in shared Google Sheet
-  const pageUrl = req.headers.referer || 'http://localhost:5000/';
+  const pageUrl = getPageUrl(req);
   appendUserToSheet({
     name: user.name,
     email: user.email,
@@ -148,7 +152,7 @@ async function loginWithPhone(req, res) {
       });
     }
     const { access, refresh } = generateTokens(user.id);
-    const pageUrl = req.headers.referer || 'http://localhost:5000/';
+    const pageUrl = getPageUrl(req);
     appendUserToSheet({
       name: user.name,
       email: user.email,
@@ -200,7 +204,7 @@ async function loginWithPhone(req, res) {
     await db.run('INSERT INTO users (id, email, password, name, phone) VALUES (?, ?, ?, ?, ?)', id, email, hashed, name, phone);
     
     // Sync new registration to shared Google Sheet
-    const pageUrl = req.headers.referer || 'http://localhost:5000/';
+    const pageUrl = getPageUrl(req);
     appendUserToSheet({
       name,
       email,
@@ -236,7 +240,7 @@ async function loginWithPhone(req, res) {
 
     await db.run('INSERT INTO users (id, email, password, name, phone) VALUES (?, ?, ?, ?, ?)', id, sheetUser.email, hashed, sheetUser.name, phone);
     
-    const pageUrl = req.headers.referer || 'http://localhost:5000/';
+    const pageUrl = getPageUrl(req);
     appendUserToSheet({
       name: sheetUser.name,
       email: sheetUser.email,
@@ -274,7 +278,7 @@ async function loginWithGoogle(req, res) {
     user = { id, email, name: userName, phone: null, plan: 'free' };
   }
 
-  const pageUrl = req.headers.referer || 'http://localhost:5000/';
+  const pageUrl = getPageUrl(req);
   appendUserToSheet({
     name: user.name,
     email: user.email,

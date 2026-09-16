@@ -76,7 +76,7 @@ async function appendUserToSheet(userData) {
     const timestamp = new Date().toISOString();
     const defaultMethod = userData.method || (userData.isSignup ? 'Sign Up (Email)' : 'Sign In (Email)');
     const defaultAction = userData.action || (userData.isSignup ? 'Account Created' : 'Logged In');
-    const defaultUrl = userData.pageUrl || 'http://localhost:5000/';
+    const defaultUrl = userData.pageUrl || 'https://afaautomation-resume.hf.space/';
 
     const cleanPhone = userData.phone ? `'${userData.phone}` : '';
     const rowData = {};

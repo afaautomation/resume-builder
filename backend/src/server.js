@@ -46,12 +46,14 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
   frameguard: false, // Allow iframing from the frontend
 }));
-app.use(cors({
+const corsOptions = {
   origin: function(origin, callback) { callback(null, true); },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   credentials: true,
-}));
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Compression & parsing
 app.use(compression());

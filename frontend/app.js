@@ -3,26 +3,38 @@
  * Refactored for Anonymous Flow: Home -> Templates -> Editor
  */
 
+const HUGGINGFACE_BACKEND_URL = 'https://afaautomation-resume.hf.space/api';
+
 const hostname = window.location.hostname || 'localhost';
 const isLocalDev = hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname.startsWith('192.168.') ||
     hostname.startsWith('10.');
 
-// Determine API_BASE dynamically to support local development, Hugging Face, and Hostinger deployments
-let API_BASE = '/api';
-if (isLocalDev) {
-    const port = window.location.port;
-    if (port && port !== '5000') {
-        API_BASE = `http://${hostname}:5000/api`;
-    }
+// Determine API_BASE dynamically to support Hostinger, Hugging Face, and local development
+let API_BASE = HUGGINGFACE_BACKEND_URL;
+
+const urlParams = new URLSearchParams(window.location.search);
+const queryApi = urlParams.get('api');
+
+if (queryApi) {
+    API_BASE = queryApi.replace(/\/$/, '');
+} else if (window.RESUME_API_BASE) {
+    API_BASE = window.RESUME_API_BASE.replace(/\/$/, '');
+} else if (localStorage.getItem('RESUME_API_BASE')) {
+    API_BASE = localStorage.getItem('RESUME_API_BASE').replace(/\/$/, '');
+} else if (hostname.endsWith('.hf.space') || hostname.endsWith('.huggingface.co')) {
+    // When running directly inside Hugging Face Spaces
+    API_BASE = '/api';
+} else if (isLocalDev && window.location.port === '5000') {
+    // When served by local backend on port 5000
+    API_BASE = '/api';
 } else {
-    // If hosted on Hostinger (or other custom domains) but the backend is hosted on Hugging Face,
-    // point API requests to the Hugging Face backend space.
-    if (!hostname.endsWith('.hf.space') && !hostname.endsWith('.huggingface.co')) {
-        API_BASE = 'https://afaautomation-resume.hf.space/api';
-    }
+    // Hostinger, custom domains, or standalone frontend dev
+    API_BASE = HUGGINGFACE_BACKEND_URL;
 }
+
+console.log('[ResumePro] Active API endpoint:', API_BASE);
 
 
 // --- State Management ---
