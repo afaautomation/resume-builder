@@ -1,0 +1,247 @@
+/* ==========================================================================
+   RESUME BUILDER — MOBILE-ONLY OVERRIDES
+   Loaded with media="(max-width: 768px)" and wrapped in the same query,
+   so none of this ever applies on desktop.
+   ========================================================================== */
+@media (max-width: 768px) {
+
+    /* 16px fields stop iOS Safari from zooming the page on focus */
+    html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+    html body select,
+    html body textarea {
+        font-size: 16px !important;
+    }
+
+    /* ---------- Shared nav pieces (landing + templates) ---------- */
+    #my-resumes-btn,
+    #my-resumes-btn-templates {
+        font-size: 0 !important;
+        gap: 0 !important;
+        width: 40px;
+        height: 40px;
+        padding: 0 !important;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    #my-resumes-btn svg,
+    #my-resumes-btn-templates svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .nav-user-name,
+    .nav-user-chevron {
+        display: none !important;
+    }
+
+    /* ---------- Landing ---------- */
+    #landing-view .nav-container {
+        padding: 0 12px !important;
+        height: 60px !important;
+        gap: 8px;
+    }
+
+    #landing-view .nav-left img {
+        height: 24px !important;
+    }
+
+    #landing-view .nav-signin-btn {
+        height: 40px;
+        padding: 0 12px !important;
+        font-size: 13px !important;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    #landing-view .nav-right {
+        gap: 8px !important;
+    }
+
+    /* Same action as the hero "Create My Resume" button, which stays visible */
+    #start-building-btn {
+        display: none !important;
+    }
+
+    /* ---------- Template picker ---------- */
+    #templates-view .top-nav .nav-container {
+        padding: 0 12px;
+        gap: 8px;
+    }
+
+    #templates-view .top-nav .nav-left {
+        min-width: 0;
+        flex: 1 1 auto;
+        gap: 6px;
+    }
+
+    #templates-view .top-nav .nav-left h2 {
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+    }
+
+    #templates-view .top-nav .nav-right {
+        gap: 8px !important;
+        flex-shrink: 0;
+    }
+
+    /* The card already carries a "Most Popular" chip; the ribbon covered the ATS chip */
+    .template-card .popular-ribbon {
+        display: none;
+    }
+
+    .template-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* ---------- Editor: compact two-row header ---------- */
+    #editor-view .editor-nav {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    #editor-view .editor-nav .nav-left {
+        gap: 8px;
+    }
+
+    #editor-view .resume-title-edit {
+        margin: 0;
+        min-width: 0;
+        gap: 8px;
+    }
+
+    #editor-view #resume-title-input {
+        min-width: 0;
+        max-width: none;
+        padding: 4px 8px;
+    }
+
+    #editor-view .save-status {
+        flex-shrink: 0;
+    }
+
+    #editor-view .editor-nav .editor-actions {
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    #editor-view .editor-actions .autosave-toggle,
+    #editor-view .ed-btn-group,
+    #editor-view #download-pdf-btn {
+        height: 38px;
+    }
+
+    #editor-view #download-pdf-btn {
+        padding: 0 14px !important;
+        font-size: 13px !important;
+        margin-left: auto;
+    }
+
+    /* Section tabs: one swipeable row instead of a clipped 4-column grid */
+    #editor-view .editor-sidebar {
+        overflow: visible;
+        padding: 8px 0;
+    }
+
+    #editor-view .sidebar-tabs {
+        margin: 0 12px 4px;
+    }
+
+    #editor-view .section-list {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        grid-template-rows: none;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        gap: 8px;
+        padding: 6px 12px;
+    }
+
+    #editor-view .section-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    #editor-view .section-nav-btn {
+        flex: 0 0 auto;
+        width: auto !important;
+        min-width: 0;
+        white-space: nowrap;
+        scroll-snap-align: start;
+        padding: 8px 14px;
+    }
+
+    #editor-view .sidebar-panels .panel#analysis-panel {
+        padding: 0 12px;
+    }
+
+    #editor-view .editor-form-container {
+        padding: 20px 16px;
+    }
+
+    /* Preview toolbar: drop the static "A4 Document" label so it fits */
+    #editor-view .preview-studio-toolbar {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    #editor-view .studio-doc-badge,
+    #editor-view .studio-doc-badge + .studio-toolbar-divider {
+        display: none;
+    }
+
+    #editor-view .editor-preview {
+        padding: 12px 16px;
+    }
+
+    #editor-view .mobile-footer-action {
+        padding: 12px 16px 32px;
+    }
+
+    /* ---------- Modals ---------- */
+    .modal {
+        padding: 12px;
+    }
+
+    .modal-content {
+        max-height: calc(100dvh - 24px);
+    }
+
+    .modal-header {
+        padding: 16px;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    #toast-container {
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        align-items: center;
+    }
+}
+
+/* Narrow Android phones (360px): tighten the landing header a little more */
+@media (max-width: 380px) {
+    #landing-view .nav-container {
+        padding: 0 10px !important;
+        gap: 6px;
+    }
+
+    #landing-view .nav-right {
+        gap: 6px !important;
+    }
+
+    #landing-view .nav-left img {
+        height: 22px !important;
+    }
+}

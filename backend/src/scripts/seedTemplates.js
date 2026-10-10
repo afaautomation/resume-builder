@@ -1,18 +1,17 @@
 require('dotenv').config();
-const { getDb } = require('../config/database');
+const { supabase } = require('../config/supabase');
 const logger = require('../config/logger');
 
 const templates = [
   {
-    id: 'tmpl_modern_1',
     name: 'Modern Blue',
     description: 'Clean single-column with a professional blue touch.',
     category: 'modern',
     layout: 'single',
     thumbnail_url: 'assets/modern_blue.png',
-    is_ats_safe: 1,
-    is_premium: 0,
-    tags: JSON.stringify(['clean', 'modern']),
+    is_ats_safe: true,
+    is_premium: false,
+    tags: ['clean', 'modern'],
     html_content: `
       <div class="resume-container">
         <header class="bleed-header">
@@ -145,15 +144,54 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_classic_1',
     name: 'Classic Serif',
-    description: 'Traditional serif layout for legal and corporate roles.',
+    description: 'Traditional 100% ATS-friendly single-column layout for students & professionals.',
     category: 'classic',
     layout: 'single',
     thumbnail_url: 'assets/classic_serif.png',
-    is_ats_safe: 1,
-    is_premium: 0,
-    tags: JSON.stringify(['classic', 'serif']),
+    is_ats_safe: true,
+    is_premium: false,
+    tags: ['classic', 'serif', 'ats', 'student'],
+    html_content: `
+      <div class="resume-container-classic">
+        <header style="text-align:center; padding-top:0; margin-top:0; padding-bottom:4px; margin-bottom:10px;">
+          <h1 style="font-size:2.2em; text-transform:uppercase; letter-spacing:1.5px; margin-top:0; margin-bottom:4px; font-weight:700;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.05em; text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:6px; color:#374151;">{{contact.title}}</div>{{/if}}
+          <div style="font-size:0.95em; color:#111827;">
+            {{contactLine contact}}
+          </div>
+          <div style="border-bottom: 2px solid #000; margin-top: 10px; margin-bottom: 12px;"></div>
+        </header>
+        {{#if summary}}<section class="sec" data-resume-section="summary"><h2>Summary</h2><p>{{nl2br summary}}</p></section>{{/if}}
+        {{#if education.length}}<section class="sec" data-resume-section="education"><h2>Education</h2>{{#each education}}<div class="item"><div style="display:flex; justify-content:space-between; align-items:baseline;"><h3 style="font-size:1.05em; font-weight:700;">{{institution}}</h3><span class="date" style="font-weight:600; font-size:0.95em;">{{endDate}}</span></div><div style="font-style:italic; font-size:0.98em; margin-top:1px;">{{degree}}</div></div>{{/each}}</section>{{/if}}
+        {{#if experience.length}}<section class="sec" data-resume-section="experience"><h2>Experience</h2>{{#each experience}}<div class="item"><div style="display:flex; justify-content:space-between; align-items:baseline;"><h3 style="font-size:1.05em; font-weight:700;">{{title}}{{#if company}} | {{company}}{{/if}}</h3><span class="date" style="font-weight:600; font-size:0.95em;">{{startDate}}{{#if endDate}} - {{endDate}}{{/if}}</span></div>{{nl2li description}}</div>{{/each}}</section>{{/if}}
+        {{#if projects.length}}<section class="sec" data-resume-section="projects"><h2>Projects</h2>{{#each projects}}<div class="item"><div style="display:flex; justify-content:space-between; align-items:baseline;"><h3 style="font-size:1.05em; font-weight:700;">{{name}}</h3>{{#if link}}<a href="{{link}}" style="font-size:0.92em; color:#000; text-decoration:underline;">{{link}}</a>{{/if}}</div>{{nl2li description}}</div>{{/each}}</section>{{/if}}
+        {{#if skills.length}}<section class="sec" data-resume-section="skills"><h2>Skills & Expertise</h2>
+          {{#if skillCategories.length}}
+            {{#each skillCategories}}{{#if items.length}}<div class="item" style="margin-bottom:8px;"><h3 style="font-size:1em; font-weight:700; margin:0 0 2px 0; color:#000000;">{{category}}</h3><p style="font-weight:400; font-size:0.95em; color:#000000; margin:0; line-height:1.45;">{{join items ", "}}</p></div>{{/if}}{{/each}}
+          {{else}}<p style="font-weight:400; font-size:0.95em; color:#000000;">{{join skills ", "}}</p>{{/if}}
+        </section>{{/if}}
+        {{#if certifications.length}}<section class="sec" data-resume-section="certifications"><h2>Certifications</h2>{{#each certifications}}<div class="item"><div style="display:flex; justify-content:space-between; align-items:baseline;"><h3 style="font-size:1.02em; font-weight:700;">{{name}}</h3><span class="date" style="font-size:0.95em;">{{date}}</span></div>{{#if issuer}}<p style="margin:0;">{{issuer}}</p>{{/if}}</div>{{/each}}</section>{{/if}}
+        {{#if additional.length}}<section class="sec" data-resume-section="additional"><h2>Additional Information</h2>{{#each additional}}<p><strong>{{title}}:</strong> {{value}}</p>{{/each}}</section>{{/if}}
+        {{#if languages.length}}<section class="sec" data-resume-section="languages"><h2>Languages</h2><p>{{#each languages}}<strong>{{name}}</strong> ({{level}}){{#unless @last}}, {{/unless}}{{/each}}</p></section>{{/if}}
+        {{#if references.length}}<section class="sec" data-resume-section="references"><h2>References</h2>{{#each references}}<div class="item"><strong>{{name}}</strong> - {{title}} ({{contact}})</div>{{/each}}</section>{{/if}}
+      </div>
+    `,
+    css_content: `
+      :root {
+        --primary: {{#if design.primaryColor}}{{design.primaryColor}}{{else}}#000000{{/if}};
+        --font-family: {{#if design.fontFamily}}{{{design.fontFamily}}}{{else}}'Merriweather', 'Times New Roman', serif{{/if}};
+      }
+      body { font-family: var(--font-family); color: #000; line-height: var(--line-height, 1.35); }
+      h2 { font-size: 1.15em; text-transform: uppercase; border-bottom: 1.5px solid #000; margin-top: 12px; margin-bottom: 6px; padding-bottom: 2px; font-weight: 700; letter-spacing: 0.8px; }
+      .item { margin-bottom: 8px; }
+      .item h3 { font-size: 1.05em; margin: 0; font-weight: 700; }
+      .date { font-weight: 600; font-size: 0.95em; color: #111; }
+      p { font-size: 1em; margin: 0; }
+      ul.bullet-list { margin: 3px 0 6px 18px; padding: 0; list-style-type: disc; }
+      ul.bullet-list li { margin-bottom: 2px; font-size: 0.95em; line-height: 1.4; color: #111; }
+    `,
+    tags: ['classic', 'serif'],
     html_content: `
       <div class="resume-container-classic">
         <header style="text-align:center; padding-top:0; margin-top:0; padding-bottom:5px; margin-bottom:15px;">
@@ -170,7 +208,7 @@ const templates = [
         {{#if education.length}}<section class="sec"><h2>Education</h2>{{#each education}}<div class="item"><h3>{{degree}}</h3><div class="date">{{endDate}}</div><p>{{institution}}</p></div>{{/each}}</section>{{/if}}
         {{#if projects.length}}<section class="sec"><h2>Projects</h2>{{#each projects}}<div class="item"><h3>{{name}}</h3>{{#if link}}<div style="font-size:0.95em; font-style:italic;"><a href="{{link}}" style="color:#000;">{{link}}</a></div>{{/if}}<p>{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if certifications.length}}<section class="sec"><h2>Certifications</h2>{{#each certifications}}<div class="item"><h3>{{name}}</h3><div class="date">{{date}}</div><p>{{issuer}}</p></div>{{/each}}</section>{{/if}}
-        {{#if skills.length}}<section class="sec"><h2>Skills</h2><p><strong>Expertise:</strong> {{join skills ", "}}</p></section>{{/if}}
+        {{#if skills.length}}<section class="sec" data-resume-section="skills"><h2>Skills</h2>{{#if skillCategories.length}}{{#each skillCategories}}{{#if items.length}}<div class="item" style="margin-bottom:8px;"><h3 style="font-size:1em; font-weight:700; margin:0 0 2px 0; color:#000000;">{{category}}</h3><p style="font-weight:400; font-size:0.95em; color:#000000; margin:0; line-height:1.45;">{{join items ", "}}</p></div>{{/if}}{{/each}}{{else}}<p style="font-weight:400; font-size:0.95em; color:#000000;">{{join skills ", "}}</p>{{/if}}</section>{{/if}}
         {{#if additional.length}}<section class="sec"><h2>Additional Information</h2>{{#each additional}}<p><strong>{{title}}:</strong> {{value}}</p>{{/each}}</section>{{/if}}
         {{#if languages.length}}<section class="sec"><h2>Languages</h2><p>{{#each languages}}<strong>{{name}}</strong> ({{level}}){{#unless @last}}, {{/unless}}{{/each}}</p></section>{{/if}}
         {{#if references.length}}<section class="sec"><h2>References</h2>{{#each references}}<div class="item"><strong>{{name}}</strong> - {{title}} ({{contact}})</div>{{/each}}</section>{{/if}}
@@ -190,15 +228,14 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_dark_1',
     name: 'Midnight Professional',
     description: 'Striking dark-themed header for a bold impression.',
     category: 'modern',
     layout: 'single',
     thumbnail_url: 'assets/dark_pro.png',
-    is_ats_safe: 1,
-    is_premium: 1,
-    tags: JSON.stringify(['dark', 'bold']),
+    is_ats_safe: true,
+    is_premium: true,
+    tags: ['dark', 'bold'],
     html_content: `
       <div class="resume-dark">
         <header class="bleed-header" style="background:#0f172a; color:#fff; padding:30px; margin-bottom: 20px;">
@@ -238,24 +275,21 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_minimal_1',
     name: 'Minimalist Executive',
     description: 'High-impact minimalist design for senior professionals.',
     category: 'modern',
     layout: 'single',
     thumbnail_url: 'assets/minimal_executive.png',
-    is_ats_safe: 1,
-    is_premium: 1,
-    tags: JSON.stringify(['minimal', 'executive', 'clean']),
+    is_ats_safe: true,
+    is_premium: true,
+    tags: ['minimal', 'executive', 'clean'],
     html_content: `
       <div style="max-width:800px; margin:0 auto; padding:40px;">
-        <header style="margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
-          <h1 style="font-size:2.4em; font-weight:300; letter-spacing:-0.5px; margin:0;">{{contact.name}}</h1>
-          {{#if contact.title}}<div style="font-size:1.15em; color:#6366f1; font-weight:500; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px;">{{contact.title}}</div>{{/if}}
-          <div style="font-size:0.95em; color:#64748b; margin-top:4px;">
-            {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}
-            {{#if contact.linkedin}} &bull; LinkedIn: {{contact.linkedin}}{{/if}}
-            {{#if contact.github}} &bull; GitHub: {{contact.github}}{{/if}}
+        <header style="text-align:center; margin-bottom:18px; border-bottom:2px solid var(--primary, #1e3a8a); padding-bottom:14px;">
+          <h1 style="font-size:2.3em; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; margin:0 0 4px 0; color:#000000; text-align:center;">{{contact.name}}</h1>
+          {{#if contact.title}}<div style="font-size:1.1em; color:#1e293b; font-weight:600; margin-top:3px; margin-bottom:6px; text-align:center;">{{contact.title}}</div>{{/if}}
+          <div style="font-size:0.95em; color:#334155; line-height:1.5; margin-top:4px; text-align:center;">
+            {{contact.email}} &bull; {{contact.phone}} &bull; {{contact.location}}{{#if contact.linkedin}} &bull; LinkedIn: {{contact.linkedin}}{{/if}}{{#if contact.github}} &bull; GitHub: {{contact.github}}{{/if}}
           </div>
         </header>
         {{#if summary}}<section style="margin-bottom:25px;">{{#if summary}}<p style="font-size:1.1em; line-height: var(--line-height, 1.6); color:#334155;">{{nl2br summary}}</p>{{/if}}</section>{{/if}}
@@ -263,7 +297,7 @@ const templates = [
         {{#if education.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Education</h2>{{#each education}}<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{degree}}</strong><span style="font-size:0.9em; color:#94a3b8;">{{endDate}}</span></div><p style="font-size:1em; color:#475569;">{{institution}}</p></div>{{/each}}</section>{{/if}}
         {{#if projects.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Projects</h2>{{#each projects}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong>{{#if link}}<a href="{{link}}" style="font-size:0.9em; color:#6366f1;">{{link}}</a>{{/if}}</div><p style="font-size:1em; color:#475569; margin-top:4px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong><span style="font-size:0.9em; color:#94a3b8;">{{date}}</span></div><p style="font-size:1em; color:#475569;">{{issuer}}</p></div>{{/each}}</section>{{/if}}
-        {{#if skills.length}}<section><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Skills</h2><p style="font-size:1em; color:#475569;">{{join skills ", "}}</p></section>{{/if}}
+        {{#if skills.length}}<section data-resume-section="skills"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Skills</h2>{{#if skillCategories.length}}{{#each skillCategories}}{{#if items.length}}<div style="margin-bottom:12px;"><h4 style="font-size:0.95em; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#0f172a; margin:0 0 3px 0;">{{category}}</h4><p style="font-size:0.95em; font-weight:400; color:#0f172a; margin:0; line-height:1.45;">{{join items ", "}}</p></div>{{/if}}{{/each}}{{else}}<p style="font-size:0.95em; font-weight:400; color:#0f172a; margin:0;">{{join skills ", "}}</p>{{/if}}</section>{{/if}}
         {{#if additional.length}}<section style="margin-top:20px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Additional</h2>{{#each additional}}<div style="margin-bottom:8px;"><strong>{{title}}:</strong> {{value}}</div>{{/each}}</section>{{/if}}
         {{#if languages.length}}<section style="margin-top:20px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">Languages</h2>{{#each languages}}<strong>{{name}}</strong>: {{level}}{{#unless @last}} &bull; {{/unless}}{{/each}}</section>{{/if}}
         {{#if references.length}}<section style="margin-top:20px;"><h2 style="font-size:1.2em; text-transform:uppercase; letter-spacing:1px; color:#1e293b; margin-bottom:15px; border-left:3px solid #6366f1; padding-left:10px;">References</h2>{{#each references}}<div style="margin-bottom:8px;"><strong>{{name}}</strong> ({{title}}) - {{contact}}</div>{{/each}}</section>{{/if}}
@@ -279,15 +313,14 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_tech_1',
     name: 'Tech Professional',
     description: 'Modern, skill-focused layout for developers and engineers.',
     category: 'modern',
     layout: 'single',
     thumbnail_url: 'assets/tech_pro.png',
-    is_ats_safe: 1,
-    is_premium: 0,
-    tags: JSON.stringify(['tech', 'modern', 'skills']),
+    is_ats_safe: true,
+    is_premium: false,
+    tags: ['tech', 'modern', 'skills'],
     html_content: `
       <div style="padding:40px; border-top:8px solid #4f46e5;">
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
@@ -330,15 +363,14 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_standard_1',
     name: 'Standard Business',
     description: 'A reliable, classic choice that passes every ATS system.',
     category: 'classic',
     layout: 'single',
     thumbnail_url: 'assets/standard_business.png',
-    is_ats_safe: 1,
-    is_premium: 0,
-    tags: JSON.stringify(['classic', 'standard', 'ats']),
+    is_ats_safe: true,
+    is_premium: false,
+    tags: ['classic', 'standard', 'ats'],
     html_content: `
       <div style="line-height: var(--line-height, 1.3);">
         <header style="text-align:center; margin-bottom:15px;">
@@ -370,15 +402,14 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_academic_1',
     name: 'Academic Professional',
     description: 'Clean, detailed layout optimized for research and academic roles.',
     category: 'classic',
     layout: 'single',
     thumbnail_url: 'assets/academic_pro.png',
-    is_ats_safe: 1,
-    is_premium: 0,
-    tags: JSON.stringify(['academic', 'professional', 'detailed']),
+    is_ats_safe: true,
+    is_premium: false,
+    tags: ['academic', 'professional', 'detailed'],
     html_content: `
       <div style="color:#2d3748;">
         <header style="border-bottom:3px solid #2d3748; padding-bottom:10px; margin-bottom:20px;">
@@ -395,7 +426,7 @@ const templates = [
         {{#if education.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Education</h2>{{#each education}}<div style="margin-bottom:12px;"><strong>{{degree}}</strong><br>{{institution}} | <span style="font-size:0.9em; color:#718096;">Graduated {{endDate}}</span></div>{{/each}}</section>{{/if}}
         {{#if projects.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Projects & Research</h2>{{#each projects}}<div style="margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:baseline;"><strong>{{name}}</strong>{{#if link}}<a href="{{link}}" style="font-size:0.9em; color:var(--primary, #2d3748);">{{link}}</a>{{/if}}</div><p style="font-size:1em; margin-top:4px;">{{nl2br description}}</p></div>{{/each}}</section>{{/if}}
         {{#if certifications.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Certifications</h2>{{#each certifications}}<div style="margin-bottom:8px;"><strong>{{name}}</strong>{{#if issuer}} ({{issuer}}{{#if date}}, {{date}}{{/if}}){{else}}{{#if date}} ({{date}}){{/if}}{{/if}}</div>{{/each}}</section>{{/if}}
-        {{#if skills.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Technical Skills</h2><p style="font-size:1em;">{{join skills ", "}}</p></section>{{/if}}
+        {{#if skills.length}}<section style="margin-bottom:25px;" data-resume-section="skills"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:12px;">Skills & Competencies</h2>{{#if skillCategories.length}}{{#each skillCategories}}{{#if items.length}}<div style="margin-bottom:12px;"><h3 style="font-size:1.02em; font-weight:700; color:#0f172a; margin:0 0 3px 0;">{{category}}</h3><p style="font-size:0.98em; font-weight:400; color:#0f172a; margin:0; line-height:1.5;">{{join items ", "}}</p></div>{{/if}}{{/each}}{{else}}<p style="font-size:0.98em; font-weight:400; color:#0f172a; margin:0;">{{join skills ", "}}</p>{{/if}}</section>{{/if}}
         {{#if additional.length}}<section style="margin-bottom:25px;"><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Additional Details</h2>{{#each additional}}<div><strong>{{title}}:</strong> {{value}}</div>{{/each}}</section>{{/if}}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
           {{#if languages.length}}<section><h2 style="font-size:1.4em; color:#2d3748; border-bottom:1px solid #e2e8f0; padding-bottom:4px; margin-bottom:10px;">Languages</h2>{{#each languages}}<div><strong>{{name}}</strong> ({{level}})</div>{{/each}}</section>{{/if}}
@@ -412,15 +443,14 @@ const templates = [
     `
   },
   {
-    id: 'tmpl_corporate_2',
     name: 'Corporate Sleek',
     description: 'Modern corporate layout with a distinctive left border accent.',
     category: 'modern',
     layout: 'single',
     thumbnail_url: 'assets/corporate_sleek.png',
-    is_ats_safe: 1,
-    is_premium: 1,
-    tags: JSON.stringify(['corporate', 'sleek', 'modern']),
+    is_ats_safe: true,
+    is_premium: true,
+    tags: ['corporate', 'sleek', 'modern'],
     html_content: `
       <div style="border-left:12px solid #1e293b; padding:40px; min-height:100%;">
         <header style="margin-bottom:30px;">
@@ -455,32 +485,73 @@ const templates = [
 ];
 
 const writingTips = [
-  { id: 'tip_1', section: 'summary', tip: 'Focus on achievements, not just tasks.', example: 'Saved 20% on server costs by optimizing database queries.' },
-  { id: 'tip_2', section: 'experience', tip: 'Use action verbs to start each bullet point.', example: 'Managed, Created, Developed, Improved' },
-  { id: 'tip_3', section: 'experience', tip: 'Quantify your accomplishments with numbers.', example: 'Increased sales by 30%, Reduced costs by $50K' },
-  { id: 'tip_4', section: 'education', tip: 'Include relevant coursework and academic projects.', example: 'Data Structures, Machine Learning, Web Development' },
-  { id: 'tip_5', section: 'skills', tip: 'List both technical and soft skills.', example: 'Python, JavaScript, Leadership, Communication' }
+  { section: 'summary', tip: 'Focus on achievements, not just tasks.', example: 'Saved 20% on server costs by optimizing database queries.' },
+  { section: 'experience', tip: 'Use action verbs to start each bullet point.', example: 'Managed, Created, Developed, Improved' },
+  { section: 'experience', tip: 'Quantify your accomplishments with numbers.', example: 'Increased sales by 30%, Reduced costs by $50K' },
+  { section: 'education', tip: 'Include relevant coursework and academic projects.', example: 'Data Structures, Machine Learning, Web Development' },
+  { section: 'skills', tip: 'List both technical and soft skills.', example: 'Python, JavaScript, Leadership, Communication' }
 ];
+
+// Only these are currently offered to users (matches the pre-migration behaviour,
+// where the SQLite seed scripts filtered down to the same three templates by id).
+const allowedTemplateNames = ['Classic Serif', 'Minimalist Executive', 'Academic Professional'];
+
+/**
+ * Upserts by a natural key (name for templates, section+tip for writing tips) instead
+ * of a fixed id, because resume_templates.id / writing_tips.id are now Postgres-generated
+ * UUIDs (no stable string id to upsert against like the old SQLite `tmpl_xxx` ids).
+ * This keeps `npm run seed` idempotent: re-running it updates existing rows in place
+ * instead of duplicating them or deleting rows that resumes.template_id may reference.
+ */
+async function upsertTemplate(tmpl) {
+  const { data: existing, error: findError } = await supabase
+    .from('resume_templates')
+    .select('id')
+    .eq('name', tmpl.name)
+    .maybeSingle();
+
+  if (findError) throw new Error(`Lookup failed for template "${tmpl.name}": ${findError.message}`);
+
+  if (existing) {
+    const { error } = await supabase.from('resume_templates').update(tmpl).eq('id', existing.id);
+    if (error) throw new Error(`Update failed for template "${tmpl.name}": ${error.message}`);
+  } else {
+    const { error } = await supabase.from('resume_templates').insert(tmpl);
+    if (error) throw new Error(`Insert failed for template "${tmpl.name}": ${error.message}`);
+  }
+}
+
+async function upsertTip(tip) {
+  const { data: existing, error: findError } = await supabase
+    .from('writing_tips')
+    .select('id')
+    .eq('section', tip.section)
+    .eq('tip', tip.tip)
+    .maybeSingle();
+
+  if (findError) throw new Error(`Lookup failed for tip "${tip.tip}": ${findError.message}`);
+
+  if (existing) {
+    const { error } = await supabase.from('writing_tips').update(tip).eq('id', existing.id);
+    if (error) throw new Error(`Update failed for tip "${tip.tip}": ${error.message}`);
+  } else {
+    const { error } = await supabase.from('writing_tips').insert(tip);
+    if (error) throw new Error(`Insert failed for tip "${tip.tip}": ${error.message}`);
+  }
+}
 
 async function seed() {
   try {
-    const db = await getDb();
-    await db.run('PRAGMA foreign_keys = OFF');
-    await db.run('DELETE FROM templates');
-    const allowedTemplateIds = ['tmpl_classic_1', 'tmpl_minimal_1', 'tmpl_academic_1'];
-    const activeTemplates = templates.filter(t => allowedTemplateIds.includes(t.id));
+    const activeTemplates = templates.filter((t) => allowedTemplateNames.includes(t.name));
+
     for (const tmpl of activeTemplates) {
-      await db.run(
-        `INSERT OR REPLACE INTO templates (id, name, description, category, layout, thumbnail_url, html_content, css_content, is_ats_safe, is_premium, tags)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        tmpl.id, tmpl.name, tmpl.description, tmpl.category, tmpl.layout, tmpl.thumbnail_url, tmpl.html_content, tmpl.css_content, tmpl.is_ats_safe, tmpl.is_premium, tmpl.tags
-      );
+      await upsertTemplate(tmpl);
     }
     for (const tip of writingTips) {
-      await db.run('INSERT OR REPLACE INTO writing_tips (id, section, tip, example) VALUES (?, ?, ?, ?)', tip.id, tip.section, tip.tip, tip.example);
+      await upsertTip(tip);
     }
-    await db.run('PRAGMA foreign_keys = ON');
-    logger.info(`Seeded ${templates.length} templates successfully!`);
+
+    logger.info(`Seeded ${activeTemplates.length} templates and ${writingTips.length} writing tips successfully!`);
     process.exit(0);
   } catch (err) {
     logger.error(`Seeding failed: ${err.message}`);

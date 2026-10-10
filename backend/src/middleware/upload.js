@@ -19,22 +19,30 @@ const ALLOWED_MIME_TYPES = {
   'image/webp': 'webp',
 };
 
-/** Disk storage — deterministic filenames */
+/**
+ * Extension is derived from the validated MIME type, never from the uploaded
+ * filename. Taking it from originalname allowed an attacker to send an allowed
+ * MIME type with a name like "payload.html"; the file landed in /uploads, which
+ * is served statically, and executed as HTML on our own origin (stored XSS).
+ */
+function safeExtensionFor(file) {
+  return `.${ALLOWED_MIME_TYPES[file.mimetype] || 'bin'}`;
+}
+
+/** Disk storage — deterministic, non-executable filenames */
 const resumeStorage = multer.diskStorage({
   destination: (req, _file, cb) => {
     cb(null, path.join(UPLOAD_DIR, 'resumes'));
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || `.${ALLOWED_MIME_TYPES[file.mimetype] || 'bin'}`;
-    cb(null, `${uuidv4()}${ext}`);
+    cb(null, `${uuidv4()}${safeExtensionFor(file)}`);
   },
 });
 
 const avatarStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, path.join(UPLOAD_DIR, 'avatars')),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${uuidv4()}${ext}`);
+    cb(null, `${uuidv4()}${safeExtensionFor(file)}`);
   },
 });
 

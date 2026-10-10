@@ -47,7 +47,8 @@ exports.translateResume = async (req, res) => {
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error(`Translation Error: ${error.message}`);
-    res.status(500).json({ success: false, message: error.message });
+    // 503 = every AI key/provider is busy; the message is safe to show.
+    res.status(error.status === 503 ? 503 : 500).json({ success: false, message: error.message });
   }
 };
 
@@ -61,11 +62,15 @@ exports.generateSuggestion = async (req, res) => {
 
     if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      // Prevent gzip and proxies from holding text until generation finishes.
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
       res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
 
       await aiService.generateSuggestionStream(type, context, (chunk) => {
         res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
       });
 
       res.write('data: [DONE]\n\n');
@@ -77,7 +82,7 @@ exports.generateSuggestion = async (req, res) => {
   } catch (error) {
     logger.error(`AI Suggestion Error: ${error.message}`, { stack: error.stack });
     if (!res.headersSent) {
-      res.status(500).json({ success: false, message: error.message });
+      res.status(error.status === 503 ? 503 : 500).json({ success: false, message: error.message });
     } else {
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();

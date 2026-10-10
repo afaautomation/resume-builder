@@ -1,31 +1,27 @@
 FROM node:22-slim
 
-# Create app directory
+# Run as the unprivileged user the image already provides
 WORKDIR /usr/src/app
+RUN chown node:node /usr/src/app
+USER node
 
-# Set up SQLite data directory and ensure proper permissions for Hugging Face (user 1000)
-RUN mkdir -p /usr/src/app/backend/data && \
-    chown -R 1000:1000 /usr/src/app
-
-# Switch to the non-root user required by Hugging Face Spaces
-USER 1000
-
-# Install backend dependencies
-COPY --chown=1000:1000 backend/package*.json ./backend/
+# Install exactly the locked production dependencies
+COPY --chown=node:node backend/package*.json ./backend/
 WORKDIR /usr/src/app/backend
-RUN npm install
+RUN npm ci --omit=dev --no-audit --no-fund
 
 # Copy the rest of the application code
 WORKDIR /usr/src/app
-COPY --chown=1000:1000 backend/ ./backend/
-COPY --chown=1000:1000 frontend/ ./frontend/
+COPY --chown=node:node backend/ ./backend/
+COPY --chown=node:node frontend/ ./frontend/
+COPY --chown=node:node resume.html ./resume.html
 
-# Expose port 7860 as required by Hugging Face Spaces
-ENV PORT=7860
-EXPOSE 7860
+ENV NODE_ENV=production
+# Cloud Run sets PORT at runtime (default 8080); the server reads it.
+ENV PORT=8080
+EXPOSE 8080
 
-# Run the app from the backend directory
+# Start the server only. Templates are seeded once per release with
+# `npm run seed`, not on every container start (Cloud Run starts many).
 WORKDIR /usr/src/app/backend
-
-# Start the server
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]

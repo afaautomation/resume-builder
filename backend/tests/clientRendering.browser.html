@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Resume renderer browser regression checks</title>
+<script src="../node_modules/handlebars/dist/handlebars.js"></script>
+<script src="../../frontend/client-renderer.js"></script>
+<h1>Resume renderer browser regression checks</h1>
+<p>Tests use synthetic data and the browser's native HTML parser.</p>
+<pre id="results">Running…</pre>
+<script>
+(async () => {
+    const results = [];
+    const content = {
+        contact: { name: 'QA Candidate' }, summary: 'Summary', skills: ['Testing'],
+        experience: [{ company: 'Company' }], education: [{ institution: 'School' }],
+        projects: [{ name: 'Project' }], certifications: ['Certificate'], languages: ['English'],
+        additional: [{ title: 'Extra', value: 'Detail' }], references: [{ name: 'Reference' }],
+    };
+    const parse = html => new DOMParser().parseFromString(html, 'text/html');
+    const keys = doc => Array.from(doc.querySelectorAll('[data-resume-section]')).map(node => node.dataset.resumeSection);
+    function assert(condition, message) { if (!condition) throw new Error(message); }
+    function check(name, run) {
+        try { run(); results.push('PASS ' + name); }
+        catch (error) { results.push('FAIL ' + name + ': ' + error.message); }
+    }
+    let templates = [...ResumeRenderer.BUILTIN_TEMPLATES];
+    try {
+        const response = await fetch('../../frontend/templates-data.json');
+        const data = await response.json();
+        if (Array.isArray(data)) templates.push(...data.filter(template => template.html_content).map(template => ({ ...template, name: template.name + ' (bundled)' })));
+    } catch {}
+    const nested = {
+        name: 'Nested columns', css_content: '',
+        html_content: '<div class="layout"><header>{{contact.name}}</header><aside>{{#if skills}}<section><h2>Skills</h2>{{skills}}</section>{{/if}}</aside><main>{{#if summary}}<section><h2>Summary</h2>{{summary}}</section>{{/if}}{{#if experience}}<section><h2>Experience</h2>{{#each experience}}<p>{{company}}</p>{{/each}}</section>{{/if}}</main></div>',
+    };
+    for (const template of [...templates, nested]) {
+        check(template.name + ': section order and content survive', () => {
+            const original = parse(ResumeRenderer.buildClientPreviewHtml(content, {}, template));
+            const order = keys(original).reverse();
+            const changed = parse(ResumeRenderer.buildClientPreviewHtml(content, {}, template, order));
+            assert(order.length >= 3, 'Expected populated sections');
+            assert(JSON.stringify(keys(changed)) === JSON.stringify(order), 'Incorrect order');
+            const text = doc => Array.from(doc.querySelectorAll('[data-resume-section]')).map(node => node.textContent).sort();
+            assert(JSON.stringify(text(original)) === JSON.stringify(text(changed)), 'Section content lost or duplicated');
+            assert(original.querySelectorAll('header').length === changed.querySelectorAll('header').length, 'Header lost');
+            if (template === nested) assert(changed.querySelector('.layout > aside') && changed.querySelector('.layout > main'), 'Column wrappers lost');
+        });
+    }
+    check('Unknown and duplicate keys retain remaining sections', () => {
+        const original = parse(ResumeRenderer.buildClientPreviewHtml(content, {}, nested));
+        const changed = parse(ResumeRenderer.buildClientPreviewHtml(content, {}, nested, ['experience', 'experience', '<script>']));
+        assert(keys(changed)[0] === 'experience', 'Requested section was not first');
+        assert(keys(changed).length === keys(original).length, 'Lost or duplicated section');
+    });
+    check('HTML text and unsafe links stay harmless after reorder', () => {
+        const bad = { ...content, summary: '</section><img src=x onerror="alert(1)">', projects: [{ name: 'Project', link: 'javascript:alert(1)' }] };
+        const changed = parse(ResumeRenderer.buildClientPreviewHtml(bad, {}, templates[0], ['projects', 'summary']));
+        assert(!changed.querySelector('img,[onerror],a[href^="javascript:"]'), 'Executable markup found');
+        assert(changed.body.textContent.includes('</section><img'), 'Literal text lost');
+    });
+    document.getElementById('results').textContent = results.join('\n') + '\n\n' + results.filter(line => line.startsWith('PASS')).length + '/' + results.length + ' checks passed';
+})();
+</script>

@@ -3,6 +3,7 @@ const { authenticate } = require('../middleware/auth');
 const { uploadAndImport, getJobStatus } = require('../controllers/importController');
 const { uploadResume } = require('../middleware/upload');
 
+// Importing is free, but needs a session (uploads cost OCR/AI time).
 router.use(authenticate);
 
 /**

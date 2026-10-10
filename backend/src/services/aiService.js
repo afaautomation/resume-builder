@@ -2,23 +2,131 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 const logger = require('../config/logger');
 
-// Heavy tasks (ATS, grammar, translate) — quality matters
-const HEAVY_MODEL_CHAIN = [
-  'gemini-2.5-pro',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-pro',
-];
+/**
+ * Fallback order for every AI call:
+ *
+ *   each model in the chain → on every Gemini key (round-robin start)
+ *   → Grok (xAI) → OpenRouter → friendly "AI is busy" error
+ *
+ * Each (key, model) pair is paused on its own, for as long as Google asks
+ * (RetryInfo), so one exhausted key or model never disables the rest.
+ * Gemini limits are per Google Cloud PROJECT, so extra keys only add quota
+ * when they come from different projects.
+ */
 
-// Fast tasks (suggest summary/description) — speed matters
-const FAST_MODEL_CHAIN = [
+// Each model has its own quota per project, so a longer chain means more free
+// requests per day. Google retires models for NEW projects first (a 404 just
+// pauses that slot for a day), so the chains are overridable from .env.
+// Pro models have no free-tier quota, so the ATS scan uses Flash too.
+// The -latest aliases are a safety net if every pinned model is retired.
+// Only real, production-available models are listed here.
+// Putting the fastest / highest-quota models first avoids serial
+// fallback delays on every cold request.
+const DEFAULT_CHAIN = [
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
   'gemini-1.5-flash',
   'gemini-1.5-flash-8b',
-  'gemini-pro',
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
 ];
 
-const COOLDOWN_DURATION = 5 * 60 * 1000; // 5 minutes cooldown for unhealthy providers
+function chainFromEnv(name, fallback) {
+  const list = (process.env[name] || '').split(',').map(m => m.trim()).filter(Boolean);
+  return list.length ? list : fallback;
+}
+
+// Heavy tasks (ATS, translate) and fast tasks (AI Write suggestions).
+const HEAVY_MODEL_CHAIN = chainFromEnv('GEMINI_HEAVY_MODELS', DEFAULT_CHAIN);
+const FAST_MODEL_CHAIN = chainFromEnv('GEMINI_FAST_MODELS', [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-lite-latest',
+  'gemini-flash-latest',
+]);
+
+const XAI_MODEL = process.env.XAI_MODEL || 'grok-3-mini';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+
+// fast: per-slot streaming timeout. Keep it short so a quota-limited or
+// misconfigured slot fails quickly and the next slot is tried immediately.
+const TIMEOUT_MS = { heavy: 45000, fast: 6000 };
+
+// How long to pause a key/model/provider after each kind of failure.
+const COOLDOWN = {
+  rateLimit: 60 * 1000,          // per-minute limit, when Google gives no retry delay
+  overloaded: 60 * 1000,         // 503 'high demand' or a timeout: skip that slot for a minute
+  dailyLimit: 60 * 60 * 1000,    // per-day limit: re-check hourly (resets midnight Pacific)
+  badKey: 30 * 60 * 1000,        // invalid key, no credits, permission denied
+  missingModel: 24 * 60 * 60 * 1000, // model retired / not available to this key
+};
+
+const BUSY_MESSAGE = 'AI is busy right now. Please try again in a minute.';
+
+/**
+ * Classifies a provider error into how long that key/model should be paused.
+ * Returns 0 for other transient errors (e.g. a 500): just move on, no pause.
+ */
+function cooldownFor(err) {
+  const status = err.status || err.response?.status;
+  const msg = String(err.message || '').toLowerCase();
+
+  if (status === 404 || msg.includes('not found')) return COOLDOWN.missingModel;
+  if (status === 503 || msg.includes('high demand') || msg.includes('overloaded') || msg.includes('timeout')) {
+    return COOLDOWN.overloaded;
+  }
+
+  if (status === 429 || msg.includes('quota') || msg.includes('resource_exhausted') || msg.includes('429')) {
+    const details = Array.isArray(err.errorDetails) ? err.errorDetails : [];
+    const perDay = details.some(d => (d.violations || []).some(v => /perday/i.test(v.quotaId || '')))
+      || /per ?day/i.test(msg);
+    if (perDay) return COOLDOWN.dailyLimit;
+
+    const retry = details.find(d => d.retryDelay);
+    const seconds = retry ? parseFloat(retry.retryDelay) : parseFloat((msg.match(/retry in ([\d.]+)s/) || [])[1]);
+    return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds * 1000) : COOLDOWN.rateLimit;
+  }
+
+  if ([400, 401, 402, 403].includes(status) || msg.includes('api key') || msg.includes('permission')) {
+    return COOLDOWN.badKey;
+  }
+  return 0;
+}
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('AI Request Timeout')), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/** Reads an OpenAI-style SSE stream (OpenRouter, xAI) and forwards text deltas. */
+function pipeSse(stream, onText) {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    const handle = (line) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) return;
+      const dataStr = trimmed.slice(6).trim();
+      if (dataStr === '[DONE]') return;
+      try {
+        const content = JSON.parse(dataStr).choices?.[0]?.delta?.content;
+        if (content) onText(content);
+      } catch (e) { /* partial or keep-alive line */ }
+    };
+    stream.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      lines.forEach(handle);
+    });
+    stream.on('end', () => { handle(buffer); resolve(); });
+    stream.on('error', reject);
+  });
+}
 
 class StreamCleaner {
   constructor(type) {
@@ -38,34 +146,26 @@ class StreamCleaner {
     // Process lines
     while (true) {
       if (this.lineStart) {
-        // We are at the start of a line. We need to wait until we have a newline OR at least 10 characters
-        // so we can reliably strip any leading bullet points/numbers.
-        const newlineIndex = this.buffer.indexOf('\n');
-        if (newlineIndex !== -1 || this.buffer.length >= 10) {
-          // Strip leading bullets/numbers from the start of the buffer
-          this.buffer = this.buffer
-            .replace(/^[\s*•\-+]+/, '')
-            .replace(/^\d+[\.\)]\s*/, '');
-          
-          this.lineStart = false;
-        } else {
-          // Wait for more chunks to decide
-          break;
-        }
+        // Strip leading bullets/numbers immediately — don't wait for more data.
+        // Waiting caused visible write lag because chunks were held back.
+        this.buffer = this.buffer
+          .replace(/^[\s*•\-+]+/, '')
+          .replace(/^\d+[\.\)]\s*/, '');
+        this.lineStart = false;
       }
 
-      // Now we are in the middle of a line (lineStart is false)
+      // Emit up to the next newline (inclusive), or the whole remaining buffer.
       const newlineIndex = this.buffer.indexOf('\n');
       if (newlineIndex !== -1) {
-        // We found a newline. Emit everything up to and including the newline.
         const lineContent = this.buffer.slice(0, newlineIndex + 1);
         onCleanedChunk(lineContent);
         this.buffer = this.buffer.slice(newlineIndex + 1);
-        this.lineStart = true; // Next chars will be start of a line
+        this.lineStart = true;
       } else {
-        // No newline, emit the entire buffer
-        onCleanedChunk(this.buffer);
-        this.buffer = '';
+        if (this.buffer) {
+          onCleanedChunk(this.buffer);
+          this.buffer = '';
+        }
         break;
       }
     }
@@ -87,184 +187,159 @@ class StreamCleaner {
 class AiService {
   constructor() {
     this.instances = [];
-    this.currentKeyIndex = 0;
-    
-    // Circuit breaker health flags
-    this.providerHealth = {
-      gemini: true,
-      grok: true,
-      openrouter: true
-    };
-    this.healthCooldowns = {
-      gemini: 0,
-      grok: 0,
-      openrouter: 0
-    };
-
+    this.nextKey = 0;          // round-robin start, so load spreads across keys
+    this.pausedUntil = new Map(); // slot id -> timestamp it may be retried
     this.init();
   }
 
   init() {
-    let rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
-    const keys = rawKeys.split(',').map(k => k.trim()).filter(k => !!k);
+    const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+    const keys = [...new Set(rawKeys.split(',').map(k => k.trim()).filter(Boolean))];
 
-    this.instances = keys.map((key, idx) => {
+    this.instances = keys.map((key, index) => {
       try {
-        const genAI = new GoogleGenerativeAI(key);
-        return {
-          key,
-          genAI,
-          heavyModels: HEAVY_MODEL_CHAIN.map(name => ({
-            name,
-            model: genAI.getGenerativeModel({ model: name })
-          })),
-          fastModels: FAST_MODEL_CHAIN.map(name => ({
-            name,
-            model: genAI.getGenerativeModel({
-              model: name,
-              generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
-            })
-          }))
-        };
+        return { index, genAI: new GoogleGenerativeAI(key), models: new Map() };
       } catch (err) {
-        logger.error(`[AI] Failed to initialize key index ${idx}: ${err.message}`);
+        logger.error(`[AI] Failed to initialize Gemini key #${index + 1}: ${err.message}`);
         return null;
       }
-    }).filter(inst => inst !== null);
-
-    const xaiKey = process.env.XAI_API_KEY;
-    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    }).filter(Boolean);
 
     logger.info(`[AI Init] Gemini Keys Count: ${this.instances.length}`);
-    logger.info(`[AI Init] XAI Key: ${xaiKey ? 'Configured' : 'Missing'}`);
-    logger.info(`[AI Init] OpenRouter Key: ${openRouterKey ? 'Configured' : 'Missing'}`);
-
-    if (this.instances.length === 0) {
-      this.providerHealth.gemini = false;
-      this.healthCooldowns.gemini = Infinity; // Disable permanently if no keys
-    }
-  }
-
-  checkHealth(provider) {
-    if (this.providerHealth[provider]) return true;
-    
-    const now = Date.now();
-    if (now - this.healthCooldowns[provider] > COOLDOWN_DURATION) {
-      logger.info(`[AI Health] Cooldown expired for ${provider}. Re-enabling...`);
-      this.providerHealth[provider] = true;
-      return true;
-    }
-    return false;
-  }
-
-  markUnhealthy(provider) {
-    logger.warn(`[AI Health] Marking provider ${provider} as UNHEALTHY due to failure. Placing on 5 min cooldown.`);
-    this.providerHealth[provider] = false;
-    this.healthCooldowns[provider] = Date.now();
+    logger.info(`[AI Init] XAI Key: ${process.env.XAI_API_KEY ? `Configured (${XAI_MODEL})` : 'Missing'}`);
+    logger.info(`[AI Init] OpenRouter Key: ${process.env.OPENROUTER_API_KEY ? `Configured (${OPENROUTER_MODEL})` : 'Missing'}`);
   }
 
   ensureInitialized() {
     // Kept for backward compatibility
   }
 
+  _model(instance, name, type) {
+    const cacheKey = `${type}:${name}`;
+    if (!instance.models.has(cacheKey)) {
+      const config = { model: name };
+      // Keep resume suggestions concise without spending output tokens on a
+      // reasoning pass. Other models and deep scans keep their own settings.
+      if (type === 'fast') {
+        config.generationConfig = { maxOutputTokens: 350, temperature: 0.5 };
+        if (/^gemini-2\.5-flash(?:-lite)?$/.test(name)) {
+          config.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+        }
+      }
+      instance.models.set(cacheKey, instance.genAI.getGenerativeModel(config));
+    }
+    return instance.models.get(cacheKey);
+  }
+
+  /** Every (key, model) pair to try, model by model, keys in round-robin order. */
+  _geminiSlots(type) {
+    const chain = type === 'heavy' ? HEAVY_MODEL_CHAIN : FAST_MODEL_CHAIN;
+    const n = this.instances.length;
+    if (!n) return [];
+    const start = this.nextKey++ % n;
+    const slots = [];
+    for (const modelName of chain) {
+      for (let i = 0; i < n; i++) {
+        const instance = this.instances[(start + i) % n];
+        slots.push({ id: `gemini#${instance.index + 1}:${modelName}`, instance, modelName });
+      }
+    }
+    return slots;
+  }
+
+  /** OpenAI-compatible fallbacks, in order. Only those with a key configured. */
+  _chatProviders() {
+    const providers = [];
+    if (process.env.XAI_API_KEY) {
+      providers.push({
+        id: 'grok',
+        url: 'https://api.x.ai/v1/chat/completions',
+        model: XAI_MODEL,
+        headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}` },
+      });
+    }
+    if (process.env.OPENROUTER_API_KEY) {
+      providers.push({
+        id: 'openrouter',
+        url: 'https://openrouter.ai/api/v1/chat/completions',
+        model: OPENROUTER_MODEL,
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://kompetenzen.in',
+          'X-Title': 'Kompetenzen Resume Builder',
+        },
+      });
+    }
+    return providers;
+  }
+
+  _isPaused(id) {
+    const until = this.pausedUntil.get(id);
+    if (!until) return false;
+    if (Date.now() >= until) {
+      this.pausedUntil.delete(id);
+      logger.info(`[AI Health] ${id} is available again.`);
+      return false;
+    }
+    return true;
+  }
+
+  _fail(id, err) {
+    const detail = err.response?.data?.error?.message || err.response?.data?.error || err.message;
+    const ms = cooldownFor(err);
+    if (ms > 0) {
+      this.pausedUntil.set(id, Date.now() + ms);
+      logger.warn(`[AI] ${id} failed (${detail}). Paused for ${Math.round(ms / 1000)}s; trying next.`);
+    } else {
+      logger.warn(`[AI] ${id} failed (${detail}). Trying next.`);
+    }
+  }
+
+  _busyError() {
+    const err = new Error(BUSY_MESSAGE);
+    err.status = 503;
+    return err;
+  }
+
   async _generate(type, prompt) {
-    // 1. Try Gemini Chain (if healthy)
-    if (this.checkHealth('gemini') && this.instances.length > 0) {
-      const chainType = type === 'heavy' ? 'heavyModels' : 'fastModels';
-      const chainNames = type === 'heavy' ? HEAVY_MODEL_CHAIN : FAST_MODEL_CHAIN;
-
-      const instance = this.instances[this.currentKeyIndex % this.instances.length];
-      const modelObj = instance[chainType][0].model;
-      const modelName = chainNames[0];
-
+    for (const slot of this._geminiSlots(type)) {
+      if (this._isPaused(slot.id)) continue;
       try {
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('AI Request Timeout')), 15000)
+        const result = await withTimeout(
+          this._model(slot.instance, slot.modelName, type).generateContent(prompt),
+          TIMEOUT_MS[type]
         );
-        const result = await Promise.race([
-          modelObj.generateContent(prompt),
-          timeoutPromise
-        ]);
-        
-        return result.response.text();
+        const text = result.response.text();
+        if (text) return text;
       } catch (err) {
-        logger.error(`[AI Gemini Error] Primary attempt failed on ${modelName}: ${err.message}`);
-        
-        // Mark Gemini unhealthy on structural auth/quota issues so subsequent calls bypass it instantly
-        const errMsg = err.message ? err.message.toLowerCase() : '';
-        if (errMsg.includes('not found') || errMsg.includes('404') || errMsg.includes('permission') || errMsg.includes('403') || errMsg.includes('quota') || errMsg.includes('429')) {
-          logger.error(`[AI Gemini Failure] Key/quota issue detected. Disabling Gemini.`);
-          this.markUnhealthy('gemini');
-        }
+        this._fail(slot.id, err);
       }
     }
 
-    // 2. Fallback to Grok (xAI) (if healthy)
-    const xaiKey = process.env.XAI_API_KEY;
-    if (xaiKey && this.checkHealth('grok')) {
-      logger.info('[AI] Falling back to Grok...');
+    for (const provider of this._chatProviders()) {
+      if (this._isPaused(provider.id)) continue;
       try {
-        const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-          model: 'grok-2',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7
-        }, {
-          headers: {
-            'Authorization': `Bearer ${xaiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 15000
-        });
-
-        if (response.data?.choices?.[0]?.message?.content) {
-          logger.info('[AI] Successfully generated content using Grok.');
-          return response.data.choices[0].message.content;
-        }
-      } catch (err) {
-        logger.error(`[AI Grok Error] ${err.response?.data?.error?.message || err.message}`);
-        const status = err.response?.status;
-        if (status === 400 || status === 401 || status === 403 || status === 429) {
-          logger.error(`[AI Grok Failure] Key or credit issue detected. Disabling Grok.`);
-          this.markUnhealthy('grok');
-        }
-      }
-    }
-
-    // 3. Fallback to OpenRouter (if healthy)
-    const openRouterKey = process.env.OPENROUTER_API_KEY;
-    if (openRouterKey && this.checkHealth('openrouter')) {
-      logger.info('[AI] Falling back to OpenRouter...');
-      try {
-        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-          model: 'google/gemini-2.5-flash',
+        const response = await axios.post(provider.url, {
+          model: provider.model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 1500
+          max_tokens: type === 'fast' ? 350 : 1500,
         }, {
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://github.com/resume-builder',
-            'X-Title': 'Resume Builder'
-          },
-          timeout: 20000
+          headers: { ...provider.headers, 'Content-Type': 'application/json' },
+          timeout: TIMEOUT_MS[type],
         });
-
-        if (response.data?.choices?.[0]?.message?.content) {
-          logger.info('[AI] Successfully generated content using OpenRouter.');
-          return response.data.choices[0].message.content;
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (content) {
+          logger.info(`[AI] Served by fallback ${provider.id}.`);
+          return content;
         }
       } catch (err) {
-        logger.error(`[AI OpenRouter Error] ${err.response?.data?.error?.message || err.message}`);
-        const status = err.response?.status;
-        if (status === 401 || status === 403 || status === 402 || status === 429) {
-          logger.error(`[AI OpenRouter Failure] Limits or auth issue detected. Disabling OpenRouter.`);
-          this.markUnhealthy('openrouter');
-        }
+        this._fail(provider.id, err);
       }
     }
 
-    throw new Error('All AI services (Gemini, Grok, & OpenRouter) are currently exhausted or unavailable.');
+    logger.error('[AI] Every Gemini key/model and fallback provider is unavailable.');
+    throw this._busyError();
   }
 
   async analyzeAts(resumeData, jobDescription = '', targetJob = '') {
@@ -322,206 +397,76 @@ class AiService {
     }
   }
 
+  /**
+   * Streams an AI Write suggestion through onChunk, with the same fallback
+   * order as _generate. A source is only abandoned for the next one if it
+   * failed before sending any text; once text has reached the student, a
+   * failure is reported instead of mixing two different answers.
+   */
   async generateSuggestionStream(type, context, onChunk) {
     const prompt = this._buildPrompt(type, context);
+    let sent = false;
+    const emit = (chunk) => {
+      sent = true;
+      if (onChunk) onChunk(chunk);
+    };
 
-    // 1. Try Gemini Streaming (if healthy)
-    if (this.checkHealth('gemini') && this.instances.length > 0) {
-      const instance = this.instances[this.currentKeyIndex % this.instances.length];
-      const modelObj = instance.fastModels[0].model;
-
+    for (const slot of this._geminiSlots('fast')) {
+      if (this._isPaused(slot.id)) continue;
       try {
         const cleaner = new StreamCleaner(type);
-        const cleanedOnChunk = (chunk) => {
-          if (onChunk) onChunk(chunk);
-        };
-
-        const result = await modelObj.generateContentStream(prompt);
+        const result = await withTimeout(
+          this._model(slot.instance, slot.modelName, 'fast').generateContentStream(prompt),
+          TIMEOUT_MS.fast
+        );
+        if (result && result.response && typeof result.response.catch === 'function') {
+          result.response.catch(() => {});
+        }
         let fullText = '';
         for await (const chunk of result.stream) {
           const chunkText = chunk.text();
           if (chunkText) {
             fullText += chunkText;
-            cleaner.process(chunkText, cleanedOnChunk);
+            cleaner.process(chunkText, emit);
           }
         }
-        cleaner.flush(cleanedOnChunk);
+        cleaner.flush(emit);
         if (fullText) return;
       } catch (err) {
-        logger.error(`[AI Stream Gemini Error] ${err.message}`);
-        const errMsg = err.message ? err.message.toLowerCase() : '';
-        if (errMsg.includes('not found') || errMsg.includes('404') || errMsg.includes('permission') || errMsg.includes('403') || errMsg.includes('quota') || errMsg.includes('429')) {
-          this.markUnhealthy('gemini');
-        }
+        if (sent) throw err;
+        this._fail(slot.id, err);
       }
     }
 
-    // 2. Try OpenRouter Streaming Fallback (if healthy)
-    const openRouterKey = process.env.OPENROUTER_API_KEY;
-    if (openRouterKey && this.checkHealth('openrouter')) {
-      logger.info('[AI Stream] Falling back to OpenRouter streaming...');
+    for (const provider of this._chatProviders()) {
+      if (this._isPaused(provider.id)) continue;
       try {
         const cleaner = new StreamCleaner(type);
-        const cleanedOnChunk = (chunk) => {
-          if (onChunk) onChunk(chunk);
-        };
-
-        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-          model: 'google/gemini-2.5-flash',
+        const response = await axios.post(provider.url, {
+          model: provider.model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 1500,
-          stream: true
+          max_tokens: 350,
+          stream: true,
         }, {
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://github.com/resume-builder',
-            'X-Title': 'Resume Builder'
-          },
+          headers: { ...provider.headers, 'Content-Type': 'application/json' },
           responseType: 'stream',
-          timeout: 25000
+          timeout: 25000,
         });
-
-        await new Promise((resolve, reject) => {
-          let buffer = '';
-          response.data.on('data', chunk => {
-            buffer += chunk.toString();
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep last incomplete line
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed || !trimmed.startsWith('data: ')) continue;
-              const dataStr = trimmed.slice(6).trim();
-              if (dataStr === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(dataStr);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  cleaner.process(content, cleanedOnChunk);
-                }
-              } catch (e) {}
-            }
-          });
-
-          response.data.on('end', () => {
-            if (buffer.startsWith('data: ')) {
-              const dataStr = buffer.slice(6).trim();
-              if (dataStr !== '[DONE]') {
-                try {
-                  const parsed = JSON.parse(dataStr);
-                  const content = parsed.choices?.[0]?.delta?.content;
-                  if (content) cleaner.process(content, cleanedOnChunk);
-                } catch (e) {}
-              }
-            }
-            cleaner.flush(cleanedOnChunk);
-            resolve();
-          });
-
-          response.data.on('error', err => {
-            reject(err);
-          });
-        });
-
-        return;
-      } catch (err) {
-        logger.error(`[AI Stream OpenRouter Error] ${err.message}`);
-        const status = err.response?.status;
-        if (status === 401 || status === 403 || status === 402 || status === 429) {
-          this.markUnhealthy('openrouter');
+        await pipeSse(response.data, (text) => cleaner.process(text, emit));
+        cleaner.flush(emit);
+        if (sent) {
+          logger.info(`[AI Stream] Served by fallback ${provider.id}.`);
+          return;
         }
-      }
-    }
-
-    // 3. Fallback to Grok (xAI) Streaming (if healthy)
-    const xaiKey = process.env.XAI_API_KEY;
-    if (xaiKey && this.checkHealth('grok')) {
-      logger.info('[AI Stream] Falling back to Grok streaming...');
-      try {
-        const cleaner = new StreamCleaner(type);
-        const cleanedOnChunk = (chunk) => {
-          if (onChunk) onChunk(chunk);
-        };
-
-        const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-          model: 'grok-2',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          stream: true
-        }, {
-          headers: {
-            'Authorization': `Bearer ${xaiKey}`,
-            'Content-Type': 'application/json'
-          },
-          responseType: 'stream',
-          timeout: 25000
-        });
-
-        await new Promise((resolve, reject) => {
-          let buffer = '';
-          response.data.on('data', chunk => {
-            buffer += chunk.toString();
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed || !trimmed.startsWith('data: ')) continue;
-              const dataStr = trimmed.slice(6).trim();
-              if (dataStr === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(dataStr);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  cleaner.process(content, cleanedOnChunk);
-                }
-              } catch (e) {}
-            }
-          });
-
-          response.data.on('end', () => {
-            if (buffer.startsWith('data: ')) {
-              const dataStr = buffer.slice(6).trim();
-              if (dataStr !== '[DONE]') {
-                try {
-                  const parsed = JSON.parse(dataStr);
-                  const content = parsed.choices?.[0]?.delta?.content;
-                  if (content) cleaner.process(content, cleanedOnChunk);
-                } catch (e) {}
-              }
-            }
-            cleaner.flush(cleanedOnChunk);
-            resolve();
-          });
-
-          response.data.on('error', err => {
-            reject(err);
-          });
-        });
-
-        return;
       } catch (err) {
-        logger.error(`[AI Stream Grok Error] ${err.message}`);
-        const status = err.response?.status;
-        if (status === 400 || status === 401 || status === 403 || status === 429) {
-          this.markUnhealthy('grok');
-        }
+        if (sent) throw err;
+        this._fail(provider.id, err);
       }
     }
 
-    // 4. Fallback to final non-streaming if all streaming fails
-    logger.info('[AI Stream] All streaming failed/exhausted. Falling back to non-streaming generateSuggestion...');
-    try {
-      const fallback = await this.generateSuggestion(type, context);
-      if (onChunk && fallback) {
-        onChunk(fallback);
-      }
-    } catch (err) {
-      logger.error(`[AI Stream Final Fallback Error] ${err.message}`);
-      throw err;
-    }
+    logger.error('[AI Stream] Every Gemini key/model and fallback provider is unavailable.');
+    throw this._busyError();
   }
 
   cleanBulletPoints(text) {
@@ -546,19 +491,33 @@ class AiService {
     return this.cleanBulletPoints(text);
   }
 
+  /**
+   * Build a lean prompt from only the fields each AI type actually needs.
+   * Sending less input = lower first-token latency.
+   */
   _buildPrompt(type, context) {
     if (type === 'summary') {
-      return `Write a cohesive, high-impact professional resume summary paragraph for: ${JSON.stringify(context)}. ` +
-             `Write the summary in the implied first-person format typical of resumes (e.g., 'Highly motivated professional...' instead of 'I am...' or '[Name] is...'). ` +
-             `Do NOT include the candidate's name or any personal pronouns like 'he', 'she', 'they', or 'I'. ` +
-             `Do NOT use a numbered list or bullet points. Use a premium professional tone. ` +
-             `Highlight key strengths, career focus, and major value proposition in 3-4 powerful sentences.`;
+      // Only send the fields the summary cares about — not arrays of items.
+      const slim = {
+        name: context?.contact?.name || '',
+        title: context?.contact?.title || '',
+        skills: (context?.skills || []).slice(0, 10),
+        experience: (context?.experience || []).slice(0, 3).map(e => ({
+          title: e.title, company: e.company, startDate: e.startDate, endDate: e.endDate
+        })),
+        education: (context?.education || []).slice(0, 2).map(e => ({
+          degree: e.degree, institution: e.institution
+        }))
+      };
+      return `Write a 3-sentence professional resume summary (implied first-person, no name/pronouns, no bullets) for:\n${JSON.stringify(slim)}`;
     }
-    return `You are an expert resume writer. Write 3 professional, high-impact resume bullet points for: ${JSON.stringify(context)}. ` +
-           `Requirements:\n` +
-           `1. Tone & Style: Write EXACTLY like a highly-skilled human professional. Avoid typical robotic AI buzzwords and generic filler (e.g., avoid "spearheaded", "leveraged", "synergy", "cutting-edge", "dynamically"). Write with clear, active, and natural language.\n` +
-           `2. Structure: Each point must explain a specific responsibility and highlight a realistic, quantifiable achievement (e.g., percentages, time saved, revenue, or team size).\n` +
-           `3. Formatting: Output ONLY the raw bullet text itself. Each point must be on a new line. Do NOT prepend any symbols (such as asterisks *, hyphens -, bullets •, or plus signs +) or list numbers (like 1., 2.) at the start. Start each line directly with a strong action verb (e.g., "Designed", "Developed", "Optimized", "Led").`;
+    // description — context is a single item object (already lean)
+    const slim = {
+      title: context?.title || '',
+      company: context?.company || context?.name || '',
+      description: (context?.description || '').slice(0, 200)
+    };
+    return `Expert resume writer. Write exactly 3 high-impact bullet points for this role/project:\n${JSON.stringify(slim)}\nRules: active verbs, quantified results, plain text only, one per line, no leading symbols.`;
   }
 }
 

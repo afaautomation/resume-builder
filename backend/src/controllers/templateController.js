@@ -1,32 +1,47 @@
-const { getDb } = require('../config/database');
+const { supabase } = require('../config/supabase');
+const logger = require('../config/logger');
 
 async function listTemplates(req, res) {
   const { category, layout, ats_only, premium_only } = req.query;
-  const db = await getDb();
-  
-  let query = 'SELECT id, name, description, category, layout, thumbnail_url, is_ats_safe, is_premium, tags FROM templates WHERE 1=1';
-  const params = [];
 
-  if (category) { query += ' AND category = ?'; params.push(category); }
-  if (layout) { query += ' AND layout = ?'; params.push(layout); }
-  if (ats_only === 'true') { query += ' AND is_ats_safe = 1'; }
-  if (premium_only === 'true') { query += ' AND is_premium = 1'; }
+  let query = supabase
+    .from('resume_templates')
+    .select('id, name, description, category, layout, thumbnail_url, is_ats_safe, is_premium, tags')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
 
-  query += ' ORDER BY sort_order ASC, created_at DESC';
-  const templates = await db.all(query, ...params);
+  if (category) query = query.eq('category', category);
+  if (layout) query = query.eq('layout', layout);
+  if (ats_only === 'true') query = query.eq('is_ats_safe', true);
+  if (premium_only === 'true') query = query.eq('is_premium', true);
+
+  const { data: templates, error } = await query;
+
+  if (error) {
+    logger.error(`listTemplates failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load templates' });
+  }
 
   return res.json({
     success: true,
     count: templates.length,
-    templates: templates.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]'), isAtsSafe: Boolean(t.is_ats_safe), isPremium: Boolean(t.is_premium) }))
+    templates: templates.map((t) => ({
+      ...t,
+      tags: t.tags || [],
+      isAtsSafe: Boolean(t.is_ats_safe),
+      isPremium: Boolean(t.is_premium),
+    })),
   });
 }
 
 async function getTemplate(req, res) {
-  const db = await getDb();
-  const template = await db.get('SELECT * FROM templates WHERE id = ?', req.params.id);
-  
-  if (!template) {
+  const { data: template, error } = await supabase
+    .from('resume_templates')
+    .select('*')
+    .eq('id', req.params.id)
+    .maybeSingle();
+
+  if (error || !template) {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
 
@@ -34,22 +49,25 @@ async function getTemplate(req, res) {
     success: true,
     template: {
       ...template,
-      tags: JSON.parse(template.tags || '[]'),
+      tags: template.tags || [],
       isAtsSafe: Boolean(template.is_ats_safe),
-      isPremium: Boolean(template.is_premium)
-    }
+      isPremium: Boolean(template.is_premium),
+    },
   });
 }
 
 async function getCategories(req, res) {
-  const db = await getDb();
-  const categories = await db.all('SELECT DISTINCT category FROM templates');
-  const layouts = await db.all('SELECT DISTINCT layout FROM templates');
+  const { data, error } = await supabase.from('resume_templates').select('category, layout');
+
+  if (error) {
+    logger.error(`getCategories failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to load categories' });
+  }
 
   return res.json({
     success: true,
-    categories: categories.map(c => c.category),
-    layouts: layouts.map(l => l.layout)
+    categories: [...new Set((data || []).map((c) => c.category))],
+    layouts: [...new Set((data || []).map((l) => l.layout))],
   });
 }
 

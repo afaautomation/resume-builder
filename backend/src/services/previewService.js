@@ -4,6 +4,7 @@
  */
 
 const Handlebars = require('handlebars');
+const { tagTemplateSections, orderSections } = require('./sectionOrderService');
 
 // ─── Handlebars Helpers ───────────────────────────────────────────────────────
 Handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
@@ -22,15 +23,16 @@ Handlebars.registerHelper('join', (arr, sep) =>
 
 Handlebars.registerHelper('nl2br', (text) =>
   new Handlebars.SafeString(
-    (text || '').replace(/\n/g, '<br>')
+    Handlebars.escapeExpression(text == null ? '' : String(text)).replace(/\n/g, '<br>')
   )
 );
 
 Handlebars.registerHelper('nl2li', (text) => {
   if (!text) return '';
-  const items = text.split('\n').filter(line => line.trim().length > 0);
-  const listItems = items.map(item => `<li>${Handlebars.escapeExpression(item.trim())}</li>`).join('');
-  return new Handlebars.SafeString(`<ul>${listItems}</ul>`);
+  const items = String(text).split('\n').map(line => line.trim().replace(/^[•\-\*]\s*/, '')).filter(Boolean);
+  if (!items.length) return '';
+  const listItems = items.map(item => '<li>' + Handlebars.escapeExpression(item) + '</li>').join('');
+  return new Handlebars.SafeString('<ul class="bullet-list">' + listItems + '</ul>');
 });
 
 // ─── HTML Builder ─────────────────────────────────────────────────────────────
@@ -39,7 +41,7 @@ function normalizeResumeData(resumeData) {
   const normalized = { ...resumeData };
 
   // Ensure all array fields are real arrays (they might come as null or strings)
-  const arrayFields = ['experience', 'education', 'skills', 'certifications', 'projects', 'languages', 'awards', 'customSections', 'references'];
+  const arrayFields = ['experience', 'education', 'skills', 'certifications', 'projects', 'languages', 'awards', 'customSections', 'references', 'additional'];
   for (const field of arrayFields) {
     if (!Array.isArray(normalized[field])) {
       if (typeof normalized[field] === 'string' && normalized[field].trim()) {
@@ -48,6 +50,11 @@ function normalizeResumeData(resumeData) {
         normalized[field] = [];
       }
     }
+    if (!Array.isArray(normalized[field])) normalized[field] = [];
+  }
+
+  for (const field of ['certifications', 'languages', 'awards']) {
+    normalized[field] = normalized[field].map(item => typeof item === 'string' ? { name: item } : item);
   }
 
   // Filter out completely empty objects from list sections
@@ -63,6 +70,19 @@ function normalizeResumeData(resumeData) {
     normalized.skills = normalized.skills.filter(s => typeof s === 'string' && s.trim());
   }
 
+  // If skillCategories present, normalize it and rebuild flat skills[] for templates
+  if (Array.isArray(normalized.skillCategories) && normalized.skillCategories.length) {
+    normalized.skillCategories = normalized.skillCategories
+      .map(c => ({ category: String(c.category || ''), items: (c.items || []).filter(s => typeof s === 'string' && s.trim()) }))
+      .filter(c => c.category || c.items.length);
+    const allItems = normalized.skillCategories.flatMap(c => c.items);
+    if (allItems.length) normalized.skills = allItems;
+  } else if (Array.isArray(normalized.skills) && normalized.skills.length) {
+    normalized.skillCategories = [{ category: '', items: normalized.skills }];
+  } else {
+    normalized.skillCategories = [];
+  }
+
   // Normalize education aliases
   if (Array.isArray(normalized.education)) {
     normalized.education = normalized.education.map((item) => ({
@@ -76,6 +96,13 @@ function normalizeResumeData(resumeData) {
   if (!normalized.contact || typeof normalized.contact !== 'object') {
     normalized.contact = {};
   }
+  normalized.projects = normalized.projects.map(item => ({
+    ...item, name: item.name || item.title || '', link: safeUrl(item.link),
+  }));
+  normalized.contact = { ...normalized.contact };
+  for (const field of ['website', 'linkedin', 'github']) {
+    normalized.contact[field] = safeUrl(normalized.contact[field]);
+  }
 
   return normalized;
 }
@@ -84,7 +111,36 @@ function mmToPx(mm) {
   return Math.round((mm / 25.4) * 96);
 }
 
-function buildHtml(resumeData, design, templateHtml, templateCss) {
+function safeUrl(value) {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  const candidate = /^[a-z][\w+.-]*:/i.test(url) ? url : `https://${url}`;
+  try {
+    const parsed = new URL(candidate);
+    return ['https:', 'http:'].includes(parsed.protocol) ? candidate : '';
+  } catch { return ''; }
+}
+
+function safeDesign(input = {}) {
+  input = input || {};
+  const number = (value, fallback, min, max) => Number.isFinite(Number(value)) && value !== null
+    ? Math.min(max, Math.max(min, Number(value))) : fallback;
+  const color = (value, fallback) => /^#[0-9a-f]{3,8}$/i.test(value || '') ? value : fallback;
+  const margins = input.margins || {};
+  return {
+    primaryColor: color(input.primaryColor, '#2563EB'),
+    secondaryColor: color(input.secondaryColor, '#1e293b'),
+    fontFamily: typeof input.fontFamily === 'string' && /^[a-z\s,'"-]+$/i.test(input.fontFamily)
+      ? input.fontFamily : 'Inter, sans-serif',
+    fontSize: number(input.fontSize, 11, 8, 20),
+    lineHeight: number(input.lineHeight, 1.5, 1, 3),
+    margins: Object.fromEntries(['top', 'right', 'bottom', 'left'].map(key =>
+      [key, number(margins[key], 12.7, 5, 40)])),
+  };
+}
+
+function buildHtml(resumeData, design, templateHtml, templateCss, sectionOrder) {
+  design = safeDesign(design);
   const normalizedResume = normalizeResumeData(resumeData);
   const {
     primaryColor = '#2563EB',
@@ -144,7 +200,7 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
 
     @media screen {
       html, body {
-        background-color: #cbd5e1 !important;
+        background: transparent !important;
         margin: 0 !important;
         padding: 0 !important;
         overflow-y: auto !important;
@@ -159,11 +215,11 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
         padding: 24px 0;
         width: 100%;
         box-sizing: border-box;
-        background: #cbd5e1;
+        background: transparent;
       }
       .page {
         background: #fff;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.10);
+        box-shadow: 0 12px 32px -14px rgba(15,23,42,0.28), 0 0 0 1px rgba(15,23,42,0.06);
         border-radius: 2px;
         flex-shrink: 0;
       }
@@ -261,8 +317,8 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
     }
   `;
 
-  const compiled = Handlebars.compile(templateHtml);
-  const body = compiled({ ...normalizedResume, design });
+  const compiled = Handlebars.compile(tagTemplateSections(templateHtml));
+  const body = orderSections(compiled({ ...normalizedResume, design }), sectionOrder);
 
   let compiledCss = templateCss || '';
   if (templateCss) {
@@ -319,6 +375,12 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
 
       pageInner.style.height = 'auto';
       pageInner.style.overflow = 'visible';
+
+      // The measuring wrapper keeps a one-page min-height so a short resume still
+      // looks like a page. That floor is not content: leaving it in made totalH
+      // at least A4_H for every resume, so even an empty one paginated into a
+      // second, blank page.
+      originalPage.style.minHeight = '0px';
 
       // Measure margins
       const cs = window.getComputedStyle(pageInner);
@@ -456,6 +518,17 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
         currentOffset = breakY;
       }
 
+      // A trailing slice holding nothing but whitespace is not a page anyone
+      // wants to print, so only keep pages that some text or image reaches into.
+      const mediaBoxes = blockBoxes.filter(b => b.tag === 'IMG' || b.tag === 'SVG');
+      while (offsets.length > 1) {
+        const lastStart = offsets[offsets.length - 1];
+        const reachesLastPage = lineBoxes.some(l => l.bottom > lastStart + 2)
+          || mediaBoxes.some(b => b.bottom > lastStart + 2);
+        if (reachesLastPage) break;
+        offsets.pop();
+      }
+
       // Render the paginated A4 pages
       container.innerHTML = '';
 
@@ -546,8 +619,8 @@ function buildHtml(resumeData, design, templateHtml, templateCss) {
 </html>`;
 }
 
-function generatePreviewHtml(resumeData, design, templateHtml, templateCss) {
-  return buildHtml(resumeData, design, templateHtml, templateCss);
+function generatePreviewHtml(resumeData, design, templateHtml, templateCss, sectionOrder) {
+  return buildHtml(resumeData, design, templateHtml, templateCss, sectionOrder);
 }
 
 module.exports = { generatePreviewHtml, buildHtml, normalizeResumeData };

@@ -6,9 +6,8 @@ const {
   updateDesign, updateSectionOrder,
 } = require('../controllers/resumeController');
 
-// All resume routes require authentication
-// Authentication disabled for refactor
-// router.use(authenticate);
+// All resume routes require authentication so resumes are private to the logged-in user.
+router.use(authenticate);
 
 /**
  * @route   GET    /api/resumes          – List all resumes for user

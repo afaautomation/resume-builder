@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResumePro | Build Your Professional Future</title>
+    <script>
+        // Reopening a screen from the address bar (?resume=<id> after a refresh or
+        // checkout, ?view=templates): hide the home screen before the first paint
+        // so it does not flash while app.js loads the resume. app.js removes this
+        // class once the screen is open; the timeout is a safety net.
+        (function () {
+            try {
+                var q = new URLSearchParams(window.location.search);
+                var cls = q.get('resume') ? 'kp-restoring-resume' : (q.get('view') === 'templates' ? 'kp-restoring-templates' : '');
+                if (!cls) return;
+                var root = document.documentElement;
+                root.classList.add('kp-restoring', cls);
+                setTimeout(function () { root.classList.remove('kp-restoring', 'kp-restoring-resume', 'kp-restoring-templates'); }, 8000);
+            } catch (e) {}
+        })();
+    </script>
+    <style>
+        html.kp-restoring #landing-view { display: none !important; }
+        html.kp-restoring body::after {
+            position: fixed; inset: 0; z-index: 99999;
+            display: flex; align-items: center; justify-content: center;
+            background: #F8FAFC; color: #475569;
+            font: 600 15px Inter, system-ui, sans-serif; letter-spacing: .01em;
+            animation: kpRestorePulse 1.2s ease-in-out infinite;
+        }
+        html.kp-restoring-resume body::after { content: 'Opening your resume…'; }
+        html.kp-restoring-templates body::after { content: 'Loading templates…'; }
+        @keyframes kpRestorePulse { 50% { opacity: .55; } }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&family=Merriweather:wght@300;400;700&family=Playfair+Display:wght@400;500;700&family=Source+Sans+Pro:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="frontend/style.css?v=46">
+    <link rel="stylesheet" href="frontend/mobile.css?v=1" media="(max-width: 768px)">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js" integrity="sha384-iLddHTLokph6Omwoyid4XKxHaWa6w41BnoEj0q5oOrzmYPpHIKt1wyjReA7s//pP" crossorigin="anonymous"></script>
+    <script src="frontend/supabase-config.js?v=6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    <script src="frontend/client-renderer.js?v=3"></script>
+</head>
+
+<body class="light-theme">
+    <div id="webgl-bg"></div>
+    <div id="app">
+        <!-- Landing View -->
+        <section id="landing-view" class="view">
+            <nav class="glass-nav">
+                <div class="nav-container"
+                    style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:0 2%; height:70px;">
+                    <div class="nav-left" style="display:flex; align-items:center;">
+                        <a href="../index.html" title="Back to Kompetenzen Home" style="display:flex; align-items:center; cursor:pointer;">
+                            <img src="frontend/assets/kompetenzen-logo.png" alt="Kompetenzen" style="height: 36px;">
+                        </a>
+                    </div>
+                    <div class="nav-right" style="display:flex; align-items:center; gap: 12px;">
+                        <button type="button" class="secondary-btn" id="my-resumes-btn"><i data-lucide="folder-open"></i> My Resumes</button>
+                        <button class="primary-btn" id="start-building-btn" onclick="startBuilderEntry()">Start Building</button>
+                        <!-- Candidate Profile Badge (Visible when logged in, matching jobs.html) -->
+                        <div id="nav-user-badge" class="nav-user-badge" style="display:none;">
+                            <button type="button" class="nav-user-btn" id="nav-user-toggle-btn" onclick="toggleNavUserDropdown(event)" aria-label="Candidate account menu">
+                                <div class="nav-user-avatar" id="nav-user-avatar">C</div>
+                                <span class="nav-user-name" id="nav-user-name">Candidate</span>
+                                <svg class="nav-user-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <div class="nav-user-menu" id="nav-user-menu">
+                                <div class="nav-user-menu-header">
+                                    <strong class="nav-user-menu-name" id="nav-user-menu-name">Candidate</strong>
+                                    <span class="nav-user-menu-email" id="nav-user-menu-email">candidate@example.com</span>
+                                </div>
+                                <div class="nav-user-menu-divider"></div>
+                                <a href="../create-profile.html" class="nav-user-menu-item" id="nav-user-profile-link">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <span>My Candidate Profile</span>
+                                </a>
+                                <button type="button" class="nav-user-menu-item logout" onclick="handleSignOut()">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                    <span>Sign Out / Switch</span>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Sign In Button (Visible when logged out) -->
+                        <button type="button" class="secondary-btn nav-signin-btn" id="nav-signin-btn" onclick="openAuthModalForNav()" style="padding: 0.55rem 1rem; border-radius: 99px; font-weight:600; display:none;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            <span>Sign In</span>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <header class="hero-section">
+                <div class="hero-content">
+                    <div class="badge">New: AI-Powered Free Templates ✨</div>
+                    <h1>Create a job-winning resume <span>in minutes.</span></h1>
+                    <p>Build a professional resume with our easy-to-use builder. 100% ATS-friendly
+                        templates. And its free!!</p>
+                    <div class="hero-actions">
+                        <button class="primary-btn lg" id="hero-cta-btn" onclick="startBuilderEntry()">
+                            Create My Resume
+                            <i data-lucide="arrow-right"></i>
+                        </button>
+                    </div>
+                    <div class="hero-trust">
+                        <span>Trusted by 10,000+ professionals from</span>
+                        <div class="trust-icons">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg"
+                                alt="Google" style="height: 20px; opacity: 0.5;">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg" alt="IBM"
+                                style="height: 15px; opacity: 0.5;">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg"
+                                alt="Microsoft" style="height: 20px; opacity: 0.5;">
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-preview">
+                    <div class="preview-card">
+                        <div class="preview-mockup">
+                            <img src="frontend/assets/classic_serif.png?v=7" alt="Resume Template Preview"
+                                style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0.85;">
+                        </div>
+                    </div>
+                    <div class="preview-card">
+                        <div class="preview-mockup">
+                            <img src="frontend/assets/minimal_executive.png?v=7" alt="Resume Template Preview"
+                                style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0.85;">
+                        </div>
+                    </div>
+                    <div class="preview-card">
+                        <div class="preview-mockup">
+                            <img src="frontend/assets/academic_pro.png?v=7" alt="Resume Template Preview"
+                                style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit; opacity: 0.85;">
+                        </div>
+                    </div>
+                    <div class="floating-stat">
+                        <i data-lucide="check-circle" style="color: #4ade80;"></i>
+                        <span>ATS Score: 98%</span>
+                    </div>
+                </div>
+            </header>
+        </section>
+
+        <!-- Templates View -->
+        <section id="templates-view" class="view hidden">
+            <nav class="top-nav">
+                <div class="nav-container">
+                    <div class="nav-left">
+                        <button class="icon-btn" id="back-to-home"><i data-lucide="arrow-left"></i></button>
+                        <h2>Select a Template</h2>
+                    </div>
+                    <div class="nav-right" style="display:flex; align-items:center; gap:10px;">
+                        <button type="button" class="secondary-btn sm" id="my-resumes-btn-templates"><i data-lucide="folder-open"></i> My Resumes</button>
+                        <!-- Candidate Profile Badge for Templates view -->
+                        <div class="nav-user-badge" id="nav-user-badge-templates" style="display:none;">
+                            <button type="button" class="nav-user-btn" onclick="toggleNavUserDropdown(event)" aria-label="Candidate account menu">
+                                <div class="nav-user-avatar">C</div>
+                                <span class="nav-user-name">Candidate</span>
+                                <svg class="nav-user-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+                            <div class="nav-user-menu">
+                                <div class="nav-user-menu-header">
+                                    <strong class="nav-user-menu-name">Candidate</strong>
+                                    <span class="nav-user-menu-email">candidate@example.com</span>
+                                </div>
+                                <div class="nav-user-menu-divider"></div>
+                                <a href="../create-profile.html" class="nav-user-menu-item">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <span>My Candidate Profile</span>
+                                </a>
+                                <button type="button" class="nav-user-menu-item logout" onclick="handleSignOut()">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                    <span>Sign Out / Switch</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <main class="templates-grid-container">
+                <div class="templates-hero-header">
+                    <div class="templates-eyebrow-badge">
+                        <i data-lucide="sparkles"></i>
+                        <span>Recruiter & ATS-Approved Designs</span>
+                    </div>
+                    <h1 class="templates-heading">Select Your Resume Template</h1>
+                    <p class="templates-subheading">Choose a clean, high-performance layout built to stand out to hiring managers and pass ATS algorithms effortlessly.</p>
+                </div>
+                <div id="template-picker-grid" class="template-grid">
+                    <!-- Templates will be injected here -->
+                </div>
+
+                <!-- Saved Resumes Section Under Templates (only shown when signed in) -->
+                <div id="saved-resumes-section" class="saved-resumes-section" style="margin-top: 4.5rem; padding-top: 3.5rem; border-top: 2px solid #e2e8f0; display: none;">
+                    <div class="templates-hero-header">
+                        <div class="templates-eyebrow-badge">
+                            <i data-lucide="cloud"></i>
+                            <span>Saved securely to your account</span>
+                        </div>
+                        <h2 class="templates-heading" style="font-size: 2.2rem;">My Saved Resumes</h2>
+                        <p class="templates-subheading">Pick up any resume exactly where you left off — edit it, duplicate it for a different role, or download a fresh PDF.</p>
+                    </div>
+                    <div id="saved-resumes-grid" class="saved-resume-grid">
+                        <!-- Saved resumes injected here -->
+                    </div>
+                </div>
+            </main>
+        </section>
+
+        <!-- Editor View -->
+        <section id="editor-view" class="view hidden">
+            <nav class="editor-nav">
+                <div class="nav-left">
+                    <button class="icon-btn" id="back-to-templates" title="Back to My Resumes"><i data-lucide="chevron-left"></i></button>
+                    <div class="resume-title-edit">
+                        <input type="text" id="resume-title-input" value="Untitled Resume">
+                        <span class="save-status saved"><i data-lucide="check"></i> Saved</span>
+                    </div>
+                </div>
+                <div class="nav-right editor-actions">
+                    <div class="ed-btn-group" role="group" aria-label="Resume actions">
+                        <button class="secondary-btn" id="save-resume-btn" title="Save now (Ctrl+S)">
+                            <i data-lucide="save"></i>
+                            <span>Save</span>
+                        </button>
+                        <button class="secondary-btn" id="ats-check-btn" title="Check how well your resume passes ATS">
+                            <i data-lucide="shield-check"></i>
+                            <span>ATS Score</span>
+                        </button>
+                    </div>
+                    <div class="ed-download">
+                        <button class="primary-btn" id="download-pdf-btn">
+                            <i data-lucide="download"></i>
+                            <span>Download PDF</span>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="editor-layout">
+                <!-- Sidebar Tools -->
+                <aside class="editor-sidebar">
+                    <div class="sidebar-tabs">
+                        <button class="sidebar-tab-btn active" data-panel="content-panel">
+                            <i data-lucide="layout-grid"></i> Content
+                        </button>
+                        <button class="sidebar-tab-btn" data-panel="analysis-panel">
+                            <i data-lucide="shield-check"></i> ATS
+                        </button>
+                    </div>
+                    <div class="sidebar-panels">
+                        <div id="content-panel" class="panel active">
+                            <div class="section-list" id="editor-sections">
+                                <!-- Sections like Experience, Education, etc. -->
+                            </div>
+                        </div>
+                        <div id="analysis-panel" class="panel">
+                            <div class="sidebar-ats-card">
+                                <div class="mini-score">
+                                    <span id="sidebar-ats-percentage">--</span>
+                                    <label>ATS Score</label>
+                                </div>
+                                <div class="sidebar-ats-note">
+                                    <i data-lucide="info" style="width:14px; height:14px; color:#2563EB; flex-shrink:0; margin-top:2px;"></i>
+                                    <span>Detailed breakdown & AI recommendations are displayed on the center canvas.</span>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:0.55rem; margin-top:0.75rem;">
+                                    <button type="button" class="primary-btn sm full" id="sidebar-open-center-ats-btn">
+                                        <i data-lucide="sparkles"></i> Open ATS Audit
+                                    </button>
+                                    <button type="button" class="secondary-btn sm full" id="sidebar-ai-scan-btn">
+                                        <i data-lucide="scan"></i> AI Deep Scan
+                                    </button>
+                                    <button type="button" class="secondary-btn sm full" id="sidebar-back-to-content-btn">
+                                        <i data-lucide="layout-grid"></i> Back to Content
+                                    </button>
+                                </div>
+                                <div id="sidebar-ats-feedback" style="display:none;"></div>
+                                <input type="hidden" id="ats-job-title-input" value="">
+                                <textarea id="ats-jd-input" style="display:none;"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Form Area -->
+                <main class="editor-form-container">
+                    <div id="active-section-form" class="section-form">
+                        <!-- Dynamic form based on selected section -->
+                    </div>
+                </main>
+
+                <!-- Preview Area -->
+                <section class="editor-preview">
+                    <!-- Floating Studio Toolbar -->
+                    <div class="preview-studio-toolbar">
+                        <div class="studio-doc-badge">
+                            <i data-lucide="file-text"></i>
+                            <span>A4 Document</span>
+                        </div>
+                        <div class="studio-toolbar-divider"></div>
+                        <div class="studio-zoom-controls">
+                            <button type="button" class="studio-zoom-btn" id="preview-zoom-out" title="Zoom Out"><i data-lucide="minus"></i></button>
+                            <span class="studio-zoom-level" id="preview-zoom-label">100%</span>
+                            <button type="button" class="studio-zoom-btn" id="preview-zoom-in" title="Zoom In"><i data-lucide="plus"></i></button>
+                            <button type="button" class="studio-zoom-btn fit-btn" id="preview-zoom-fit" title="Fit to Window">Fit</button>
+                        </div>
+                        <div class="studio-toolbar-divider"></div>
+                        <button type="button" class="studio-template-btn" id="preview-change-template-btn" title="Change Template">
+                            <i data-lucide="palette"></i>
+                            <span>Template</span>
+                        </button>
+                    </div>
+                    <div class="preview-frame-container" id="preview-frame-container">
+                        <iframe id="resume-preview-iframe" title="Resume Preview"></iframe>
+                    </div>
+                </section>
+
+                <!-- Mobile FAB (Keeping for now but prioritizing bottom bar) -->
+                <button id="mobile-download-fab" class="mobile-only-btn">
+                    <i data-lucide="download"></i>
+                </button>
+
+                <!-- Mobile Bottom Button (Static at the end) -->
+                <div class="mobile-footer-action">
+                    <button class="primary-btn full beautiful-btn" id="mobile-bottom-download-btn">
+                        <i data-lucide="download"></i>
+                        Download PDF Resume
+                    </button>
+                </div>
+            </div>
+        </section>
+
+
+
+        <!-- Modals -->
+        <div id="ats-modal" class="modal hidden">
+            <div class="modal-content ats-results">
+                <div class="modal-header">
+                    <h2>ATS Analysis</h2>
+                    <button class="icon-btn close-modal"><i data-lucide="x"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-tabs">
+                        <button class="modal-tab-btn active" data-tab="local-ats">Basic Scan</button>
+                        <button class="modal-tab-btn" data-tab="ai-ats">
+                            <i data-lucide="sparkles" style="width:14px; height:14px;"></i>
+                            AI Deep Scan
+                        </button>
+                    </div>
+
+                    <div id="local-ats-pane" class="tab-pane">
+                        <div class="ats-score-container">
+                            <div class="score-circle">
+                                <svg viewBox="0 0 36 36">
+                                    <path class="circle-bg"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path id="score-path" class="circle" stroke-dasharray="0, 100"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <div class="score-text">
+                                    <span id="ats-percentage">0%</span>
+                                    <label id="ats-grade">F</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ats-feedback-list" class="feedback-list">
+                            <!-- Feedback items -->
+                        </div>
+                    </div>
+
+                    <div id="ai-ats-pane" class="tab-pane hidden">
+                        <div class="ai-ats-loading">
+                            <div class="spinner"></div>
+                            <p>Gemini is analyzing your resume for industry keywords and impact...</p>
+                        </div>
+                        <div id="ai-ats-content" class="hidden">
+                            <div class="ai-score-display" style="text-align:center; margin-bottom:1.5rem;">
+                                <h3 id="ai-ats-score" style="font-size:2.5rem; color:var(--primary);">0%</h3>
+                                <p id="ai-ats-grade" style="font-weight:600;"></p>
+                            </div>
+                            <div id="ai-feedback-list" class="feedback-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container"></div>
+
+                <!-- Auth Modal (Matching Job Listing NextRaise format) -->
+        <div id="otp-auth-modal" class="modal hidden">
+            <div class="auth-modal-card">
+                
+                <!-- STEP 1: CHOICE SCREEN (NextRaise Style) -->
+                <div id="auth-step-choice" class="auth-step-view" style="display:block;">
+                    <!-- Top Row: Logo & Close Button -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <img src="frontend/assets/kompetenzen-logo.png" alt="Kompetenzen" style="height:26px; display:block;">
+                        </div>
+                        <button type="button" class="auth-close-btn" onclick="closeAuthModal()" aria-label="Close modal">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Hero Text -->
+                    <h2 style="font-size:1.55rem; font-weight:800; color:#0f172a; line-height:1.22; letter-spacing:-0.03em; margin:0 0 0.5rem; text-align:left;">
+                        Build a job-winning resume <span style="color:#1947FF;">in minutes.</span>
+                    </h2>
+                    <p style="font-size:0.88rem; color:#64748b; font-weight:500; margin:0 0 1.75rem; text-align:left;">
+                        Free to start · ATS-friendly templates
+                    </p>
+
+                    <!-- Action Buttons Stack -->
+                    <div style="display:flex; flex-direction:column; gap:0.75rem; width:100%;">
+                        <!-- 1. Continue with Google -->
+                        <button type="button" id="lead-google-btn" class="auth-pill-btn auth-google-btn" onclick="continueWithGoogle()">
+                            <svg style="width:19px; height:19px; flex-shrink:0;" viewBox="0 0 48 48">
+                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                            </svg>
+                            <span id="lead-google-btn-text">Continue with Google</span>
+                        </button>
+
+                        <!-- 2. Continue with email -->
+                        <button type="button" id="btn-continue-with-email" class="auth-pill-btn auth-email-btn" onclick="showAuthStep('email', 'signup')">
+                            <span>Continue with email</span>
+                        </button>
+                    </div>
+
+                    <!-- Terms / Privacy Disclaimer -->
+                    <p style="font-size:0.75rem; color:#94a3b8; line-height:1.45; text-align:center; margin:1.75rem 0 0;">
+                        By continuing you agree to the <a href="javascript:void(0)" style="color:#64748b; text-decoration:underline;">Terms of Service</a> and <a href="javascript:void(0)" style="color:#64748b; text-decoration:underline;">Privacy Policy</a>
+                    </p>
+
+                    <!-- Existing user link -->
+                    <div style="margin-top:1rem; text-align:center; font-size:0.83rem; color:#64748b;">
+                        Already have an account? <a href="javascript:void(0)" onclick="showAuthStep('email', 'login')" style="color:#1947FF; font-weight:700; text-decoration:none;">Log In</a>
+                    </div>
+                </div>
+
+                <!-- STEP 2: EMAIL & DETAILS FORM -->
+                <div id="auth-step-email" class="auth-step-view" style="display:none;">
+                    <!-- Top Row: Back button & Close button -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.1rem;">
+                        <button type="button" class="auth-back-btn" onclick="showAuthStep('choice')">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="19" y1="12" x2="5" y2="12"></line>
+                                <polyline points="12 19 5 12 12 5"></polyline>
+                            </svg>
+                            <span>Back</span>
+                        </button>
+
+                        <button type="button" class="auth-close-btn" onclick="closeAuthModal()" aria-label="Close modal">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Step 2 Title & Tab Switcher -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:0.4rem;">
+                        <h3 id="auth-modal-title" style="margin:0; font-size:1.32rem; font-weight:800; color:#0f172a; letter-spacing:-0.025em;">
+                            Create Your Account
+                        </h3>
+                        
+                        <!-- Switcher Pills -->
+                        <div style="display:flex; background:#f1f5f9; border-radius:99px; padding:2px; border:1px solid #e2e8f0; flex-shrink:0;">
+                            <button type="button" id="tab-signup-btn" onclick="switchAuthTab('signup')"
+                                style="padding:4px 12px; border:none; border-radius:99px; font-weight:700; font-size:0.75rem; cursor:pointer; transition:all 0.2s; background:#1947FF; color:#ffffff; box-shadow:0 2px 6px rgba(25,71,255,0.25);">
+                                Sign Up
+                            </button>
+                            <button type="button" id="tab-login-btn" onclick="switchAuthTab('login')"
+                                style="padding:4px 12px; border:none; border-radius:99px; font-weight:700; font-size:0.75rem; cursor:pointer; transition:all 0.2s; background:transparent; color:#64748b;">
+                                Log In
+                            </button>
+                        </div>
+                    </div>
+
+                    <p id="auth-modal-subtitle" style="margin:0 0 1.15rem; font-size:0.83rem; color:#64748b; line-height:1.4; text-align:left;">
+                        Enter your details to create and download your resume
+                    </p>
+
+                    <!-- Inline Status Message -->
+                    <div id="auth-inline-msg" style="display:none; padding:0.55rem 0.85rem; border-radius:10px; font-size:0.82rem; font-weight:600; margin-bottom:0.85rem; text-align:center;"></div>
+
+                    <!-- SIGN UP FORM -->
+                    <form id="signup-form" onsubmit="event.preventDefault(); submitAuth('signup');" style="display:flex; flex-direction:column; gap:0.2rem;">
+                        <div class="auth-input-group">
+                            <label>Full Name</label>
+                            <input id="signup-name" type="text" required placeholder="Enter your full name" autocomplete="name">
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label>Email Address</label>
+                            <input id="signup-email" type="email" required placeholder="you@example.com" autocomplete="email">
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label>Phone Number</label>
+                            <input id="signup-phone" type="tel" required placeholder="+91 98765 43210" autocomplete="tel">
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label>Password</label>
+                            <input id="signup-password" type="password" required minlength="6" placeholder="Min 6 characters" autocomplete="new-password">
+                            <span onclick="toggleAuthPasswordVisibility('signup-password')"
+                                style="position:absolute; right:10px; top:31px; cursor:pointer; color:#94a3b8; font-size:14px; user-select:none; padding:4px;"
+                                title="Toggle password visibility">👁️</span>
+                        </div>
+
+                        <button type="submit" id="signup-submit-btn" class="auth-pill-btn auth-submit-btn" style="margin-top:0.4rem;">
+                            Create Account →
+                        </button>
+
+                        <div style="margin-top:0.85rem; text-align:center; font-size:0.8rem; color:#64748b;">
+                            Already have an account? <a href="javascript:void(0)" onclick="switchAuthTab('login')" style="color:#1947FF; font-weight:700; text-decoration:none;">Log In</a>
+                        </div>
+                    </form>
+
+                    <!-- LOG IN FORM -->
+                    <form id="login-form" onsubmit="event.preventDefault(); submitAuth('login');" style="display:none; flex-direction:column; gap:0.25rem;">
+                        <div class="auth-input-group">
+                            <label>Email Address</label>
+                            <input id="login-email" type="email" required placeholder="Enter your email" autocomplete="email">
+                        </div>
+
+                        <div class="auth-input-group">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <label style="margin:0;">Password</label>
+                                <a href="javascript:void(0)" onclick="handleForgotPassword()" style="font-size:0.75rem; color:#1947FF; font-weight:600; text-decoration:none;">Forgot?</a>
+                            </div>
+                            <input id="login-password" type="password" required placeholder="Enter your password" autocomplete="current-password">
+                            <span onclick="toggleAuthPasswordVisibility('login-password')"
+                                style="position:absolute; right:10px; top:31px; cursor:pointer; color:#94a3b8; font-size:14px; user-select:none; padding:4px;"
+                                title="Toggle password visibility">👁️</span>
+                        </div>
+
+                        <button type="submit" id="login-submit-btn" class="auth-pill-btn auth-submit-btn" style="margin-top:0.5rem;">
+                            Log In →
+                        </button>
+
+                        <div style="margin-top:0.85rem; text-align:center; font-size:0.8rem; color:#64748b;">
+                            Don't have an account? <a href="javascript:void(0)" onclick="switchAuthTab('signup')" style="color:#1947FF; font-weight:700; text-decoration:none;">Sign Up</a>
+                        </div>
+                    </form>
+
+                    <!-- Quick Return to Google Option -->
+                    <div style="margin-top:0.75rem; text-align:center; font-size:0.78rem; color:#94a3b8;">
+                        or <a href="javascript:void(0)" onclick="continueWithGoogle()" style="color:#1947FF; font-weight:600; text-decoration:none;">Continue with Google</a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Zoom & Check Modal for Mobile -->
+        <div id="zoom-check-modal" class="modal hidden" style="background: rgba(15, 23, 42, 0.95); z-index: 3000;">
+            <div class="modal-content"
+                style="max-width: 95%; height: 90vh; background: #1e293b; border-color: #334155; display: flex; flex-direction: column;">
+                <div class="modal-header"
+                    style="border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; padding: 1rem;">
+                    <h2 style="color: #fff; margin: 0; font-size: 1.25rem;">Zoom & Check Resume</h2>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button id="modal-zoom-fit" class="secondary-btn sm"
+                            style="background: #334155; color: #fff; border: none; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: var(--radius-sm);">Fit
+                            Screen</button>
+                        <button id="modal-zoom-100" class="primary-btn sm"
+                            style="padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: var(--radius-sm);">100%
+                            Size</button>
+                        <button class="icon-btn close-modal"
+                            style="color: #fff; background: transparent; border: none; padding: 0.5rem;"><i
+                                data-lucide="x"></i></button>
+                    </div>
+                </div>
+                <div class="modal-body"
+                    style="flex: 1; overflow: auto; padding: 1rem; display: flex; justify-content: center; align-items: flex-start; background: #0f172a; position: relative;">
+                    <div id="modal-iframe-wrapper" style="position: relative; transform-origin: top center;">
+                        <iframe id="modal-preview-iframe"
+                            style="width: 800px; height: 1130px; border: none; background: #fff;"
+                            title="Zoom Preview"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-confirm-modal" class="modal hidden">
+            <div class="modal-content standard-auth-card" style="max-width: 380px; text-align: center; padding: 2rem 1.8rem 1.6rem;">
+                <button type="button" class="standard-close-btn close-modal" onclick="closeDeleteModal()">&times;</button>
+                <div style="width: 52px; height: 52px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; border: 1px solid #fee2e2;">
+                    <i data-lucide="trash-2" style="width: 24px; height: 24px;"></i>
+                </div>
+                <h3 style="font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 0 0 0.5rem 0;">Delete Resume?</h3>
+                <p id="delete-confirm-text" style="font-size: 0.9rem; color: #64748b; line-height: 1.5; margin: 0 0 1.5rem 0;">
+                    Are you sure you want to delete this resume? This cannot be undone.
+                </p>
+                <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                    <button type="button" class="secondary-btn" style="flex: 1; justify-content: center; padding: 0.65rem 1rem; font-weight: 600;" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="button" id="confirm-delete-action-btn" class="primary-btn danger" style="flex: 1; justify-content: center; padding: 0.65rem 1rem; background: #ef4444; border-color: #ef4444; color: #ffffff; font-weight: 600;" onclick="executeDeleteResume()">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scripts -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                function initBackground() {
+                    if (window.vantaEffect) window.vantaEffect.destroy();
+                    window.vantaEffect = VANTA.NET({
+                        el: "#webgl-bg",
+                        mouseControls: true,
+                        touchControls: true,
+                        gyroControls: false,
+                        minHeight: 200.00,
+                        minWidth: 200.00,
+                        scale: 1.00,
+                        scaleMobile: 1.00,
+                        color: 0x3b82f6,
+                        backgroundColor: 0xf8fafc,
+                        points: 12.00,
+                        maxDistance: 22.00,
+                        spacing: 18.00
+                    });
+                }
+                initBackground();
+            });
+        </script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="frontend/app.js?v=63"></script>
+
+</body>
+
+</html>
