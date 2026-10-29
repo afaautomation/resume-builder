@@ -514,6 +514,27 @@ function createDefaultResumeData(templateId, user) {
 }
 
 
+// Populate the editor before rendering; both API and direct-save paths use this content.
+async function autofillResumeFromProfile(resume, user, isNew = false) {
+    if (!user?.id || resume.user_id !== user.id || typeof ProfileResumeSync === 'undefined' || typeof supabaseClient === 'undefined') return false;
+    try {
+        const profile = await ProfileResumeSync.readProfile(supabaseClient, user.id);
+        if (!profile) return false;
+        const original = JSON.stringify(resume.content || {});
+        const source = isNew ? { ...resume.content, contact: {} } : resume.content;
+        const merged = ProfileResumeSync.profileToResume(source, profile);
+        if (isNew) {
+            for (const key of ['name','email','phone']) if (!merged.contact[key]) merged.contact[key] = resume.content.contact?.[key] || '';
+        }
+        resume.content = merged;
+        return JSON.stringify(merged) !== original;
+    } catch (error) {
+        console.warn('Profile autofill unavailable. Existing resume kept.');
+        showToast('Your profile details could not be loaded. You can still edit your resume.', 'info');
+        return false;
+    }
+}
+
 async function startBuildingWithTemplate(templateId) {
     // Check if user is signed in
     const user = await getResumeUser();
@@ -536,6 +557,7 @@ async function startBuildingWithTemplate(templateId) {
 
         const initialData = createDefaultResumeData(templateId, user);
         initialData.user_id = user.id || user.email;
+        await autofillResumeFromProfile(initialData, user, true);
         // Generate valid UUID for Supabase compatibility
         const newUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
             ? crypto.randomUUID()
@@ -1059,6 +1081,9 @@ async function openEditor(id, preloadedResume = null) {
             }
         }
 
+        const editorUser = await getResumeUser();
+        const profileAutofilled = await autofillResumeFromProfile(state.currentResume, editorUser);
+
         // Use 'editor' view directly, not templates, so my cleanup code in switchView doesn't wipe state
         state.activeView = 'editor';
         document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
@@ -1070,8 +1095,14 @@ async function openEditor(id, preloadedResume = null) {
 
         setupEditor();
 
-        // The freshly loaded resume matches the database exactly.
-        state.isDirty = Boolean(state.currentResume._needsSync || state.currentResume.isLocal);
+        // Autofilled details and recovered drafts need to be saved.
+        state.isDirty = Boolean(profileAutofilled || state.currentResume._needsSync || state.currentResume.isLocal);
+        if (profileAutofilled) {
+            state.currentResume._needsSync = true;
+            cacheResumeDraft(state.currentResume);
+            if (state.autosaveEnabled) scheduleAutosave();
+            showToast('Missing details filled from your profile. Review them before exporting.', 'info');
+        }
         state.lastSavedAt = (state.currentResume && state.currentResume.updated_at) ? new Date(state.currentResume.updated_at) : null;
         syncAutosaveToggle();
         setSaveStatus(state.isDirty ? 'dirty' : 'saved');

@@ -9,8 +9,8 @@
  *   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
  */
 
-const SUPABASE_URL = "https://xgnluardsgflfxttvgwc.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_OTub68LVVtzOUFHG3tt-8g_dF9X0ECf";
+const SUPABASE_URL = "https://lmimmujaqznybtcinwdo.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_3Sq9ZteA_RLrGgP-nSx1gA_zncBTMdG";
 
 let supabaseClient = null;
 
@@ -90,8 +90,11 @@ async function supabaseSignIn(email, password) {
 }
 
 async function supabaseSignInWithGoogle(redirectUrl) {
+  // Same format as the main site's supabase-config.js: timestamped, and always
+  // replaced so an abandoned sign-in cannot redirect the visitor later.
   try {
-    if (redirectUrl) localStorage.setItem('kompetenzen_pending_auth_redirect', redirectUrl);
+    if (redirectUrl) localStorage.setItem('kompetenzen_pending_auth_redirect', JSON.stringify({ url: redirectUrl, at: Date.now() }));
+    else localStorage.removeItem('kompetenzen_pending_auth_redirect');
   } catch (e) {}
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: 'google',

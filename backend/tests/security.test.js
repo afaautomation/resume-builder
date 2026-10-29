@@ -113,3 +113,11 @@ describe('requireAdmin middleware', () => {
     expect(r.nextCalled).toBe(true);
   });
 });
+
+describe('retired staff registration endpoint', () => {
+  test.each(['user@gmail.com', 'staff@kompetenzen.in'])('rejects public signup for %s', async email => {
+    const res = await request(app).post('/api/auth/staff-signup').send({ email, password: 'password123' });
+    expect(res.status).toBe(410);
+    expect(res.body.message).toMatch(/invitation-only/);
+  });
+});

@@ -6,3 +6,9 @@ exports/
 .DS_Store
 google-credentials.json
 .vscode/
+# Secrets stay on this computer and in Google Secret Manager, never in Git.
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json

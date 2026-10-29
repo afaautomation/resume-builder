@@ -36,6 +36,7 @@ function setup() {
     part('async function leaveEditor(', 'window.leaveEditor = leaveEditor;'),
     part('function escapeHtml(', 'function formatSavedDate('),
     part('async function fetchSavedResumes(', 'function renderSavedResumes('),
+    part('async function autofillResumeFromProfile(', 'async function startBuildingWithTemplate('),
     part('async function openEditor(', 'function setupEditor('),
     part('function renderSectionForm(', 'function addListItem('),
   ]) vm.runInContext(code, ctx);
@@ -143,6 +144,36 @@ function elements(html) {
   const list = []; const walk = node => { if (node.type === 'tag') list.push(node); (node.children || []).forEach(walk); };
   walk(parseDocument(html)); return list;
 }
+
+test('profile autofill populates editable fields before rendering and schedules saving', async () => {
+  const ctx = setup();
+  ctx.supabaseClient = {};
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../../frontend/profile-resume-sync.js'), 'utf8'), ctx);
+  ctx.ProfileResumeSync = {
+    ...ctx.ProfileResumeSync,
+    readProfile: jest.fn(async () => ({ name: 'Test Student', institution: 'Test College', qualification: 'B.Tech', grad_year: '2028', skills: 'Python' }))
+  };
+  ctx.setupEditor.mockImplementation(() => ctx.renderSectionForm('contact'));
+  await ctx.openEditor(ctx.state.currentResume.id, ctx.state.currentResume);
+  expect(elements(ctx.form.innerHTML).find(node => node.attribs['data-path'] === 'contact.name').attribs.value).toBe('Test Student');
+  expect(ctx.state.currentResume.content.education[0].institution).toBe('Test College');
+  expect(ctx.state.currentResume.content.skills).toEqual(['Python']);
+  expect(ctx.state.currentResume.content.summary).toBe('Before');
+  expect(ctx.scheduleAutosave).toHaveBeenCalled();
+  expect(ctx.state.isDirty).toBe(true);
+});
+
+test('profile autofill failures preserve the resume and other owners are never queried', async () => {
+  const ctx = setup();
+  ctx.supabaseClient = {};
+  ctx.ProfileResumeSync = { readProfile: jest.fn(async () => { throw new Error('Offline'); }) };
+  const before = JSON.stringify(ctx.state.currentResume);
+  expect(await ctx.autofillResumeFromProfile(ctx.state.currentResume, user)).toBe(false);
+  expect(JSON.stringify(ctx.state.currentResume)).toBe(before);
+  ctx.ProfileResumeSync.readProfile.mockClear();
+  expect(await ctx.autofillResumeFromProfile(ctx.state.currentResume, { id: 'another-user' })).toBe(false);
+  expect(ctx.ProfileResumeSync.readProfile).not.toHaveBeenCalled();
+});
 
 test('quotes round-trip through editor fields and pasted HTML remains text', () => {
   const ctx = setup();

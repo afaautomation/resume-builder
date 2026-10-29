@@ -71,13 +71,21 @@ async function buildUserContext(authUser) {
   }
 
   const meta = authUser.user_metadata || {};
+  // Match database is_admin(): never trust editable metadata or a stale role.
+  let isStaff = false;
+  if (authUser.email_confirmed_at && authUser.email &&
+      (!authUser.banned_until || Date.parse(authUser.banned_until) <= Date.now())) {
+    const { data: staff, error: staffError } = await supabase.from('staff_emails')
+      .select('email').eq('email', authUser.email.toLowerCase()).maybeSingle();
+    isStaff = !staffError && !!staff;
+  }
   return {
     id: authUser.id,
     email: authUser.email,
     name: (profile && profile.name) || meta.name || meta.full_name || authUser.email,
     phone: (profile && profile.phone) || meta.phone || null,
     avatarUrl: profile ? profile.avatar_url : null,
-    role: (profile && profile.role) || 'user',
+    role: isStaff ? 'admin' : 'user',
     createdAt: profile ? profile.created_at : null,
   };
 }
@@ -133,7 +141,7 @@ async function authenticatePreview(req, res, next) {
   }
 }
 
-/** Staff-only routes. Role is read from profiles.role, which users cannot edit. */
+/** Staff-only routes. authenticate derives this role from the protected staff list. */
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     logger.warn(`Non-admin user ${req.user && req.user.id} attempted an admin route: ${req.originalUrl}`);

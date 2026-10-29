@@ -2,6 +2,11 @@ const router = require('express').Router();
 const { getMe, updateProfile, sendOtp, verifyOtp } = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth');
 
+// Removed public account creation/reset. Invitations are sent by the owner via Supabase.
+router.post('/staff-signup', (req, res) => res.status(410).json({
+  success: false, message: 'Staff access is invitation-only. Contact the owner.'
+}));
+
 /**
  * Mobile Number OTP Routes
  */
